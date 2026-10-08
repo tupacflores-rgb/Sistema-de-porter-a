@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="form-page" aria-labelledby="form-title">
+  <div class="form-heading">
+    <div class="login-kicker">Gestión de usuarios</div>
+    <h2 id="form-title">{{ titulo }}</h2>
+    <p>Completá la información en tres pasos breves.</p>
+  </div>
+  <form method="post" enctype="multipart/form-data" id="usuarioForm" class="wizard-form" novalidate>
+    <ol class="wizard-progress" aria-label="Progreso del formulario">
+      <li class="is-active" data-step-indicator="1"><span>1</span><strong>Datos personales</strong></li>
+      <li data-step-indicator="2"><span>2</span><strong>Perfil</strong></li>
+      <li data-step-indicator="3"><span>3</span><strong>Foto</strong></li>
+    </ol>
+    <div class="wizard-step is-active" data-step="1">
+      <fieldset>
+        <legend>Datos personales</legend>
+        <div class="form-grid">
+          <div class="field"><label for="nombre">Nombre</label><input id="nombre" type="text" name="nombre" value="{{ usuario.nombre if usuario else '' }}" required aria-describedby="nombreError"><span class="field-error" id="nombreError"></span></div>
+          <div class="field"><label for="apellido">Apellido</label><input id="apellido" type="text" name="apellido" value="{{ usuario.apellido if usuario else '' }}" required aria-describedby="apellidoError"><span class="field-error" id="apellidoError"></span></div>
+          <div class="field"><label for="email">Correo electrónico</label><input id="email" type="email" name="email" value="{{ usuario.email if usuario else '' }}" required {{ 'readonly' if usuario else '' }} aria-describedby="emailError"><span class="field-error" id="emailError"></span></div>
+          <div class="field"><label for="dni">DNI</label><input id="dni" type="text" name="dni" value="{{ usuario.dni if usuario else '' }}" required maxlength="8" inputmode="numeric" pattern="[0-9]{1,8}" aria-describedby="dniError"><span class="field-error" id="dniError"></span></div>
+          <div class="field field-wide"><label for="password">Contraseña {{ '(dejar vacía para no cambiar)' if usuario else '' }}</label><input id="password" type="password" name="password" {{ '' if usuario else 'required' }} aria-describedby="passwordError"><span class="field-error" id="passwordError"></span></div>
+        </div>
+      </fieldset>
+    </div>
+    <div class="wizard-step" data-step="2" hidden>
+      <fieldset>
+        <legend>Perfil y permisos</legend>
+        <div class="form-grid">
+          <div class="field field-wide"><label for="rolSelect">Rol</label><select name="rol" class="form-select" id="rolSelect" required><option value="alumno" {{ 'selected' if usuario and usuario.rol=='alumno' else '' }}>Alumno</option><option value="preceptor" {{ 'selected' if usuario and usuario.rol=='preceptor' else '' }}>Preceptor</option><option value="directivo" {{ 'selected' if usuario and usuario.rol=='directivo' else '' }}>Directivo</option><option value="entrada" {{ 'selected' if usuario and usuario.rol=='entrada' else '' }}>Entrada</option></select><span class="field-error" id="rolError"></span></div>
+          <div class="field" id="campoCurso"><label for="cicloSelect">Ciclo</label><select id="cicloSelect" class="form-select"><option value="basico">Ciclo Básico (1-2)</option><option value="superior">Ciclo Superior (3-6)</option></select><label class="sub-label" for="cursoSelect">Curso</label><select name="curso" class="form-select" id="cursoSelect"><option value="">-- Seleccionar curso --</option>{% for grade in range(1,7) %}<option value="{{ grade }}A" {{ 'selected' if usuario and usuario.curso==grade~'A' else '' }}>{{ grade }}A</option><option value="{{ grade }}B" {{ 'selected' if usuario and usuario.curso==grade~'B' else '' }}>{{ grade }}B</option>{% endfor %}</select></div>
+          <div class="field" id="campoTurno"><label for="turnoSelect">Turno</label><select name="turno" id="turnoSelect" class="form-select"><option value="">-- Seleccionar turno --</option><option value="mañana" {{ 'selected' if usuario and usuario.turno=='mañana' else '' }}>Mañana</option><option value="tarde" {{ 'selected' if usuario and usuario.turno=='tarde' else '' }}>Tarde</option></select><label class="sub-label" for="horaEntradaOficial">Horario oficial de entrada</label><input id="horaEntradaOficial" type="time" name="hora_entrada_oficial" value="{{ usuario.hora_entrada_oficial if usuario and usuario.hora_entrada_oficial else ('13:00' if usuario and usuario.turno=='tarde' else '08:00') }}" class="form-control" required></div>
+          <div class="field field-wide" id="campoCapacitacion"><label for="capacitacionSelect">Capacitación</label><select name="capacitacion" id="capacitacionSelect" class="form-select"><option value="">-- Sin capacitación --</option><option value="Informática" {{ 'selected' if usuario and usuario.capacitacion=='Informática' else '' }}>Informática</option><option value="Electrónica" {{ 'selected' if usuario and usuario.capacitacion=='Electrónica' else '' }}>Electrónica</option></select></div>
+        </div>
+        <p class="form-hint" id="roleHint">El rol Entrada no necesita curso ni turno.</p>
+      </fieldset>
+    </div>
+    <div class="wizard-step" data-step="3" hidden>
+      <fieldset>
+        <legend>Foto y registro facial</legend>
+        <p class="form-hint">Para habilitar el reconocimiento de asistencia, usá una foto clara, de frente y con una sola persona. Se guarda localmente un vector facial de 128 dimensiones.</p>
+        {% if usuario and usuario.face_encoding %}<p class="text-success fw-bold"><i class="fa-solid fa-face-smile" aria-hidden="true"></i> Rostro registrado para reconocimiento.</p>{% endif %}
+        <div class="field"><label for="foto">Subir una imagen</label><input id="foto" type="file" name="foto" accept="image/png, image/jpeg, image/gif" class="form-control"><span class="form-hint">También podés tomarla con la cámara. Al guardar, se analizará para el reconocimiento facial si das tu consentimiento.</span></div>
+        <label class="face-consent" for="faceConsent"><input id="faceConsent" type="checkbox" name="face_consent" value="1" {{ 'checked' if usuario and usuario.face_consent else '' }}><span>Autorizo explícitamente el tratamiento local de esta imagen para generar y guardar un vector biométrico facial para el control de asistencia. Si el alumno es menor, confirmo que cuento con la autorización de su responsable.</span></label>
+        <p class="form-hint">Sin consentimiento, la asistencia por QR y los demás datos del usuario siguen funcionando normalmente. La cámara y los embeddings se procesan en este equipo; el sistema no implementa detección de vida contra fotos o pantallas.</p>
+        <input type="hidden" name="foto_data" id="fotoData">
+        <div class="camera-actions"><button type="button" class="btn btn-outline-secondary" id="btnCamera"><i class="fa-solid fa-camera"></i> Usar cámara</button><button type="button" class="btn btn-outline-primary" id="btnTakePhoto" hidden><i class="fa-solid fa-camera-retro"></i> Tomar foto</button><button type="button" class="btn btn-outline-danger" id="btnStopCamera" hidden>Cerrar cámara</button></div>
+        <video id="cameraPreview" autoplay playsinline hidden></video><canvas id="photoCanvas" hidden></canvas><img id="photoPreview" alt="Vista previa de la foto tomada" hidden>
+        {% if usuario and usuario.profile_photo %}<div class="current-photo"><span>Foto actual</span><img src="{{ url_for('static', filename='uploads/' ~ usuario.profile_photo) }}" alt="Foto de perfil actual"></div>{% endif %}
+      </fieldset>
+    </div>
+    <div class="wizard-actions"><a href="{{ url_for('gestion_usuarios') }}" class="btn btn-secondary">Cancelar</a><button type="button" class="btn btn-outline-primary" id="previousStep" hidden>Anterior</button><button type="button" class="btn btn-primary" id="nextStep">Siguiente</button><button type="submit" class="btn btn-primary" id="submitForm" hidden>Guardar usuario</button></div>
+  </form>
+</section>
+<script>
+  const initialCurso = "{{ usuario.curso if usuario and usuario.curso else '' }}";
+  const initialRol = "{{ usuario.rol if usuario else 'alumno' }}";
+
+  function populateCursos() {
+    const ciclo = document.getElementById('cicloSelect').value;
+    const cursoSel = document.getElementById('cursoSelect');
+    const prev = cursoSel.value || initialCurso;
+    let grades = [];
+    if (ciclo === 'basico') grades = [1,2];
+    else grades = [3,4,5,6];
+    // rebuild options
+    cursoSel.innerHTML = '<option value="">-- Seleccionar curso --</option>';
+    grades.forEach(g => {
+      ['A','B'].forEach(s => {
+        const val = g + s;
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.text = val;
+        if (prev === val) opt.selected = true;
+        cursoSel.appendChild(opt);
+      });
+    });
+    toggleCapacitacion();
+  }
+
+  function toggleCurso() {
+    const rol = document.getElementById('rolSelect').value;
+    const showCurso = (rol === 'alumno' || rol === 'preceptor');
+    const showTurno = showCurso;
+    document.getElementById('campoCurso').style.display = showCurso ? 'block' : 'none';
+    document.getElementById('campoTurno').style.display = showTurno ? 'block' : 'none';
+    document.getElementById('campoCapacitacion').style.display = (rol === 'alumno') ? 'block' : 'none';
+    document.getElementById('cursoSelect').required = showCurso;
+    document.getElementById('turnoSelect').required = showTurno;
+    document.getElementById('horaEntradaOficial').required = showTurno;
+    document.getElementById('cursoSelect').disabled = !showCurso;
+    document.getElementById('turnoSelect').disabled = !showTurno;
+    document.getElementById('horaEntradaOficial').disabled = !showTurno;
+    document.getElementById('capacitacionSelect').disabled = rol !== 'alumno';
+    document.getElementById('roleHint').textContent = rol === 'entrada'
+      ? 'El rol Entrada puede operar sin curso ni turno.'
+      : 'El curso y el turno permiten organizar la asistencia.';
+    if (showCurso) {
+      // establecer ciclo inicial según curso existente
+      const cicloSel = document.getElementById('cicloSelect');
+      if (!initialCurso) {
+        // default: basico
+        cicloSel.value = 'basico';
+      } else {
+        const grade = parseInt(initialCurso, 10);
+        cicloSel.value = (grade >= 3) ? 'superior' : 'basico';
+      }
+      populateCursos();
+    }
+  }
+
+  function toggleCapacitacion() {
+    const rol = document.getElementById('rolSelect').value;
+    const cursoVal = document.getElementById('cursoSelect').value;
+    const campoCap = document.getElementById('campoCapacitacion');
+    if (rol === 'alumno') {
+      const grade = parseInt(cursoVal, 10) || 0;
+      if (grade >= 3) {
+        campoCap.style.display = 'block';
+        return;
+      }
+    }
+    campoCap.style.display = 'none';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('rolSelect').addEventListener('change', toggleCurso);
+    document.getElementById('cicloSelect').addEventListener('change', populateCursos);
+    document.getElementById('cursoSelect').addEventListener('change', toggleCapacitacion);
+    document.getElementById('turnoSelect').addEventListener('change', event => {
+      document.getElementById('horaEntradaOficial').value = event.target.value === 'tarde' ? '13:00' : '08:00';
+    });
+    document.getElementById('rolSelect').value = initialRol;
+    toggleCurso();
+
+    const form = document.getElementById('usuarioForm');
+    const steps = [...document.querySelectorAll('.wizard-step')];
+    const indicators = [...document.querySelectorAll('[data-step-indicator]')];
+    const previousButton = document.getElementById('previousStep');
+    const nextButton = document.getElementById('nextStep');
+    const submitButton = document.getElementById('submitForm');
+    let currentStep = 0;
+
+    function validateStep() {
+      const fields = [...steps[currentStep].querySelectorAll('input, select')]
+        .filter(field => !field.disabled);
+      let valid = true;
+      fields.forEach(field => {
+        const error = document.getElementById(field.id + 'Error');
+        if (!field.checkValidity()) {
+          valid = false;
+          field.setAttribute('aria-invalid', 'true');
+          if (error) error.textContent = field.validity.valueMissing ? 'Este campo es obligatorio.' : 'Revisá el formato indicado.';
+        } else {
+          field.removeAttribute('aria-invalid');
+          if (error) error.textContent = '';
+        }
+      });
+      if (!valid) fields.find(field => !field.checkValidity()).focus();
+      return valid;
+    }
+
+    function showStep(step) {
+      currentStep = step;
+      steps.forEach((item, index) => {
+        item.hidden = index !== currentStep;
+        item.classList.toggle('is-active', index === currentStep);
+      });
+      indicators.forEach((indicator, index) => {
+        indicator.classList.toggle('is-active', index === currentStep);
+        indicator.classList.toggle('is-complete', index < currentStep);
+      });
+      previousButton.hidden = currentStep === 0;
+      nextButton.hidden = currentStep === steps.length - 1;
+      submitButton.hidden = currentStep !== steps.length - 1;
+      steps[currentStep].querySelector('input:not([disabled]), select:not([disabled]), button')?.focus();
+    }
+
+    nextButton.addEventListener('click', () => {
+      if (validateStep()) showStep(currentStep + 1);
+    });
+    previousButton.addEventListener('click', () => showStep(currentStep - 1));
+    form.addEventListener('submit', event => {
+      if (!validateStep()) event.preventDefault();
+    });
+    showStep(0);
+
+    const cameraButton = document.getElementById('btnCamera');
+    const takePhotoButton = document.getElementById('btnTakePhoto');
+    const stopCameraButton = document.getElementById('btnStopCamera');
+    const cameraPreview = document.getElementById('cameraPreview');
+    const photoCanvas = document.getElementById('photoCanvas');
+    const photoPreview = document.getElementById('photoPreview');
+    let cameraStream = null;
+
+    cameraButton.addEventListener('click', async () => {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        cameraPreview.srcObject = cameraStream;
+        cameraPreview.hidden = false;
+        takePhotoButton.hidden = false;
+        stopCameraButton.hidden = false;
+        cameraButton.hidden = true;
+      } catch (error) {
+        alert('No se pudo acceder a la cámara: ' + (error.message || error));
+      }
+    });
+
+    takePhotoButton.addEventListener('click', () => {
+      photoCanvas.width = cameraPreview.videoWidth;
+      photoCanvas.height = cameraPreview.videoHeight;
+      photoCanvas.getContext('2d').drawImage(cameraPreview, 0, 0);
+      const photoData = photoCanvas.toDataURL('image/jpeg', 0.9);
+      document.getElementById('fotoData').value = photoData;
+      photoPreview.src = photoData;
+      photoPreview.hidden = false;
+    });
+
+    stopCameraButton.addEventListener('click', () => {
+      if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+      cameraPreview.srcObject = null;
+      cameraPreview.hidden = true;
+      takePhotoButton.hidden = true;
+      stopCameraButton.hidden = true;
+      cameraButton.hidden = false;
+    });
+  });
+</script>
+{% endblock %}

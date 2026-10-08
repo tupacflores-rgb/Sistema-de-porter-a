@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard-head">
+  <div>
+    <div class="login-kicker">Administración</div>
+    <h2>Panel de Dirección</h2>
+    <p>Una vista clara de la operación diaria del colegio.</p>
+  </div>
+</div>
+<div class="row mt-4">
+  <div class="col-md-4">
+    <div class="card stat-card stat-blue mb-3">
+      <div class="card-body">
+        <div class="stat-label">Alumnos</div>
+        <div class="stat-value">{{ total_alumnos }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card stat-card stat-coral mb-3">
+      <div class="card-body">
+        <div class="stat-label">Preceptores</div>
+        <div class="stat-value">{{ total_preceptores }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="list-group">
+  <a href="{{ url_for('gestion_usuarios') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-users"></i> Gestionar usuarios</a>
+  <a href="{{ url_for('reporte_asistencia') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-chart-column"></i> Ver asistencia por curso</a>
+  <a href="{{ url_for('carga_masiva') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-file-import"></i> Carga masiva de datos</a>
+  <a href="{{ url_for('gestion_backups') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-hard-drive"></i> Backups de la base de datos</a>
+</div>
+{% endblock %}

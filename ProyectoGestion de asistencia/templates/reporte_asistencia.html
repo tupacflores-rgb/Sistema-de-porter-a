@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Reporte de asistencia por curso</h2>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-auto">
+    <select name="curso" class="form-select">
+      <option value="">-- Seleccionar curso --</option>
+      {% for c in cursos %}
+        <option value="{{ c }}" {{ 'selected' if c==curso_sel else '' }}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <input type="date" name="fecha" class="form-control" value="{{ fecha }}">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-outline-primary">Consultar</button>
+  </div>
+</form>
+{% if curso_sel %}
+  <h5>Curso: {{ curso_sel }} – {{ fecha }}</h5>
+  <div class="table-responsive">
+  <table class="table table-bordered">
+    <thead><tr><th>Alumno</th><th>Estado</th></tr></thead>
+    <tbody>
+      {% for al in alumnos %}
+      <tr>
+        <td>{{ al.nombre }}</td>
+        <td><span class="badge bg-{{ 'success' if registros[al.id]=='presente' else 'danger' if registros[al.id]=='ausente' else 'warning' if registros[al.id]=='tardanza' else 'secondary' }}">{{ registros[al.id] }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% endif %}
+{% endblock %}

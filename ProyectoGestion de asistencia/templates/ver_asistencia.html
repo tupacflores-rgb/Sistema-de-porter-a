@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+{% if es_preceptor %}
+  <h2>Asistencia del curso - {{ fecha }}</h2>
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+      <input type="date" name="fecha" class="form-control" value="{{ fecha }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+    </div>
+  </form>
+  <div class="table-responsive">
+  <table class="table table-bordered">
+    <thead><tr><th>Foto</th><th>Alumno</th><th>Turno</th><th>Estado</th><th>Hora</th></tr></thead>
+    <tbody>
+      {% for al in alumnos %}
+      <tr>
+        <td>{% if al.profile_photo %}<img src="{{ url_for('static', filename='uploads/' ~ al.profile_photo) }}" alt="Foto" class="img-thumbnail" style="max-width: 50px;">{% else %}-{% endif %}</td>
+        <td>{{ al.nombre }} {{ al.apellido }}</td>
+        <td>{{ al.turno or '-' }}</td>
+        <td><span class="badge bg-{{ 'success' if registros[al.id].estado=='presente' else 'danger' if registros[al.id].estado=='ausente' else 'warning' if registros[al.id].estado=='tardanza' else 'secondary' }}">{{ registros[al.id].estado }}</span></td>
+        <td>{{ registros[al.id].hora or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% elif es_alumno %}
+  <h2>Mi Asistencia</h2>
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+      <input type="month" name="mes" class="form-control" value="{{ mes }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+    </div>
+  </form>
+  <div class="mb-3">
+    <span class="badge bg-success">Presentes: {{ presentes }}</span>
+    <span class="badge bg-danger">Ausentes: {{ ausentes }}</span>
+    <span class="badge bg-warning">Tardanzas: {{ tardanzas }}</span>
+    <span class="badge bg-secondary">Total: {{ total }}</span>
+  </div>
+  <div class="table-responsive">
+  <table class="table table-striped">
+    <thead><tr><th>Fecha</th><th>Estado</th></tr></thead>
+    <tbody>
+      {% for r in registros %}
+      <tr>
+        <td>{{ r.fecha }}</td>
+        <td><span class="badge bg-{{ 'success' if r.estado=='presente' else 'danger' if r.estado=='ausente' else 'warning' }}">{{ r.estado }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2">Sin registros para este mes.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% endif %}
+{% endblock %}

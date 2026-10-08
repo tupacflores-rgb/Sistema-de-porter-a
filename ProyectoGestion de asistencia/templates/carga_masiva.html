@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div><h2 class="mb-1">Carga masiva de alumnos</h2></div>
+  <a href="{{ url_for('dashboard_directivo') }}" class="btn btn-outline-secondary">Volver</a>
+</div>
+
+{% if stage == 'upload' %}
+<div class="card mb-4"><div class="card-body">
+  <h5>1. Seleccionar planilla</h5>
+  <p>Se leerá la primera hoja activa. La primera fila debe contener los encabezados. El límite es 10.000 alumnos.</p>
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="action" value="upload">
+    <label for="excelFile" class="form-label">Archivo Excel (.xlsx)</label>
+    <input id="excelFile" type="file" name="excel" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="form-control mb-3" required>
+    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-eye"></i> Previsualizar</button>
+  </form>
+</div></div>
+{% endif %}
+
+{% if stage in ('mapping', 'preview') %}
+<div class="alert alert-light border"><strong>Planilla:</strong> {{ payload.filename }} · <strong>Filas:</strong> {{ payload.rows|length }} · <strong>Columnas:</strong> {{ payload.headers|length }}</div>
+{% if errors %}<div class="alert alert-danger">{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+<div class="card mb-4"><div class="card-body">
+  <h5>2. Revisión de campos detectados</h5>
+  <p>Preseleccionamos las columnas reconocidas. Revisá la asociación; el rol se asigna como <strong>alumno</strong> automáticamente.</p>
+  <div class="table-responsive mb-3"><table class="table table-sm table-bordered align-middle">
+    <thead><tr><th>Campo de destino</th><th>Columna seleccionada</th><th>Detección</th></tr></thead>
+    <tbody>{% for field, label in fields %}
+      {% set selected_column = mapping.get(field) if mapping else none %}
+      <tr><td>{{ label }}{% if field in ('nombre','apellido','dni','email','password','curso','turno') %} <span class="text-danger">*</span>{% endif %}</td>
+        <td>{% if selected_column is not none and selected_column < payload.headers|length %}{{ payload.headers[selected_column] }} (columna {{ selected_column + 1 }}){% else %}<span class="text-warning">Sin detectar — requiere asignación</span>{% endif %}</td>
+        <td>{% if selected_column is not none %}<span class="text-success">Preseleccionado</span>{% else %}<span class="text-muted">Pendiente</span>{% endif %}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  <button type="button" class="btn btn-outline-primary mb-3" id="toggleMappingEditor" aria-expanded="{{ 'true' if stage == 'mapping' else 'false' }}" aria-controls="columnMappingEditor">{% if stage == 'mapping' %}<i class="fa-solid fa-xmark"></i> Cerrar edición{% else %}<i class="fa-solid fa-pen-to-square"></i> Editar campos{% endif %}</button>
+  <form method="post" class="row g-3" id="columnMappingEditor" {% if stage != 'mapping' %}hidden{% endif %}>
+    <input type="hidden" name="action" value="map">
+    {% for field, label in fields %}
+    <div class="col-sm-6 col-lg-4">
+      <label for="map_{{ field }}" class="form-label">{{ label }}{% if field in ('nombre','apellido','dni','email','password','curso','turno') %} <span class="text-danger">*</span>{% endif %}</label>
+      <select id="map_{{ field }}" name="map_{{ field }}" class="form-select">
+        <option value="">No importar</option>
+        {% for header in payload.headers %}<option value="{{ loop.index0 }}" {{ 'selected' if mapping and mapping.get(field) == loop.index0 else '' }}>{{ header }} (columna {{ loop.index }})</option>{% endfor %}
+      </select>
+    </div>
+    {% endfor %}
+    <div class="col-12"><button type="submit" class="btn btn-primary">Guardar campos y validar vista previa</button></div>
+  </form>
+</div></div>
+
+{% if stage == 'mapping' %}
+<h5>Vista previa de la hoja (primeras 10 filas)</h5>
+<div class="table-responsive mb-4"><table class="table table-sm table-striped"><thead><tr>{% for header in payload.headers %}<th>{{ header }}</th>{% endfor %}</tr></thead><tbody>
+  {% for row in payload.rows[:10] %}<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table></div>
+{% else %}
+{% set error_rows = payload.row_errors|map(attribute='row')|list %}
+<div class="alert {{ 'alert-success' if not payload.row_errors else 'alert-warning' }}">
+  {% if payload.row_errors %}Se encontraron {{ payload.row_errors|length }} fila(s) con problemas. Corregí los datos en Excel y volvé a cargar la planilla.{% else %}Las {{ payload.records|length }} filas pasaron la validación. Aún no se modificó la base de datos.{% endif %}
+</div>
+{% if backup_created %}<div class="alert alert-warning">Se generó el backup {{ backup_created }}, pero la base no cambió porque aparecieron conflictos al confirmar.</div>{% endif %}
+<div class="table-responsive mb-3"><table class="table table-sm table-striped align-middle"><thead><tr><th>Fila</th><th>Nombre</th><th>Apellido</th><th>DNI</th><th>Email</th><th>Curso</th><th>Turno</th><th>Resultado</th></tr></thead><tbody>
+  {% for record in payload.records %}
+  {% set row_error = (payload.row_errors|selectattr('row', 'equalto', record._row)|first) %}
+  <tr><td>{{ record._row }}</td><td>{{ record.nombre }}</td><td>{{ record.apellido }}</td><td>{{ record.dni }}</td><td>{{ record.email }}</td><td>{{ record.curso }}</td><td>{{ record.turno }}</td><td>{% if row_error %}<span class="text-danger">{{ row_error.messages|join('; ') }}</span>{% else %}<span class="text-success">Lista</span>{% endif %}</td></tr>
+  {% endfor %}
+</tbody></table></div>
+{% if not payload.row_errors %}
+<form method="post" onsubmit="return confirm('Se creará una copia de seguridad en backup_db antes de guardar. ¿Confirmás la importación de {{ payload.records|length }} alumnos?')">
+  <input type="hidden" name="action" value="import">
+  <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+</form>
+{% endif %}
+{% endif %}
+{% endif %}
+
+{% if stage in ('mapping', 'preview') %}
+<script>
+document.getElementById('toggleMappingEditor')?.addEventListener('click', event => {
+  const button = event.currentTarget;
+  const editor = document.getElementById('columnMappingEditor');
+  const expanded = button.getAttribute('aria-expanded') === 'true';
+  editor.hidden = expanded;
+  button.setAttribute('aria-expanded', String(!expanded));
+  button.innerHTML = expanded
+    ? '<i class="fa-solid fa-pen-to-square"></i> Editar campos'
+    : '<i class="fa-solid fa-xmark"></i> Cerrar edición';
+});
+</script>
+{% endif %}
+
+{% if stage == 'done' %}
+<div class="alert alert-success"><h4 class="alert-heading">Importación completada</h4><p>Se agregaron {{ imported|length }} alumnos. Backup previo: <strong>{{ backup_name }}</strong> en <strong>backup_db/</strong>.</p></div>
+<div class="table-responsive mb-3"><table class="table table-striped"><thead><tr><th>Nombre</th><th>Apellido</th><th>DNI</th><th>Email</th></tr></thead><tbody>{% for user in imported %}<tr><td>{{ user.nombre }}</td><td>{{ user.apellido }}</td><td>{{ user.dni }}</td><td>{{ user.email }}</td></tr>{% endfor %}</tbody></table></div>
+<a href="{{ url_for('carga_masiva') }}" class="btn btn-primary">Importar otra planilla</a>
+<a href="{{ url_for('gestion_usuarios') }}" class="btn btn-outline-primary">Ver usuarios</a>
+{% endif %}
+{% endblock %}

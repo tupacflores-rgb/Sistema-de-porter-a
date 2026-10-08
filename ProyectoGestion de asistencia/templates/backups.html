@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Backups de la base de datos</h2>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">Crear backup</h5>
+        <p class="card-text">Genera una copia completa de la base de datos actual.</p>
+        <form method="post">
+          <input type="hidden" name="action" value="crear">
+          <button type="submit" class="btn btn-primary">Crear backup ahora</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">Cargar backup</h5>
+        <p class="card-text">Restaura la base usando un archivo SQLite.</p>
+        <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="action" value="cargar">
+          <input type="file" name="backup" accept=".db,.sqlite,.sqlite3" class="form-control mb-3" required>
+          <button type="submit" class="btn btn-warning" onclick="return confirm('Se creará un backup de seguridad y se reemplazará la base actual. ¿Continuar?')">Cargar y restaurar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>Historial de backups</h3>
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead>
+      <tr><th>Archivo</th><th>Tipo</th><th>Fecha</th><th>Tamaño</th><th>Acción</th></tr>
+    </thead>
+    <tbody>
+      {% for backup in backups %}
+      <tr>
+        <td>{{ backup.filename }}</td>
+        <td>{{ backup.tipo|capitalize }}</td>
+        <td>{{ backup.fecha }}</td>
+        <td>{{ '%.2f'|format(backup.tamano / 1024) }} KB</td>
+        <td><a href="{{ url_for('descargar_backup', filename=backup.filename) }}" class="btn btn-sm btn-outline-primary">Descargar</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-muted">Todavía no hay backups registrados.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<a href="{{ url_for('dashboard_directivo') }}" class="btn btn-secondary">Volver</a>
+{% endblock %}

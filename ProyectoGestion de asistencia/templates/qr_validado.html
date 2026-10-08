@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block body_class %}{{ 'qr-duplicate' if asistencia_hoy else '' }}{% endblock %}
+{% block content %}
+<section class="qr-profile" aria-labelledby="qr-profile-title">
+{% if asistencia_hoy %}
+<h2 id="qr-profile-title">Ingreso ya registrado</h2>
+<p class="qr-result-message"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Este alumno ya registró su ingreso hoy a las {{ asistencia_hoy.hora or 'hora no disponible' }}. No es necesario volver a marcarlo.</p>
+{% else %}
+<h2 id="qr-profile-title">Usuario identificado</h2>
+<p class="text-success fw-bold"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> QR validado correctamente</p>
+{% endif %}
+<div class="card qr-profile-card mb-3">
+  <div class="card-body qr-profile-body">
+    {% if usuario.profile_photo %}
+    <img src="{{ url_for('static', filename='uploads/' ~ usuario.profile_photo) }}" alt="Foto de perfil de {{ usuario.nombre }} {{ usuario.apellido }}" class="qr-profile-photo">
+    {% elif session.rol == 'entrada' and usuario.rol == 'alumno' %}
+    <div class="alert alert-warning w-100">Este alumno todavía no tiene una foto de perfil.</div>
+    {% endif %}
+    <h5 class="card-title">{{ usuario.nombre }} {{ usuario.apellido }}</h5>
+    <div class="qr-profile-details">
+      <p class="card-text"><strong>Rol</strong><span>{{ usuario.rol }}</span></p>
+      {% if usuario.curso %}<p class="card-text"><strong>Curso</strong><span>{{ usuario.curso }}</span></p>{% endif %}
+      {% if usuario.turno %}<p class="card-text"><strong>Turno</strong><span>{{ usuario.turno }}</span></p>{% endif %}
+      {% if usuario.capacitacion %}<p class="card-text"><strong>Capacitación</strong><span>{{ usuario.capacitacion }}</span></p>{% endif %}
+    </div>
+  </div>
+</div>
+{% if session.rol == 'entrada' and usuario.rol == 'alumno' and not usuario.profile_photo and not asistencia_hoy %}
+<section class="card mb-3 text-start" aria-labelledby="studentPhotoTitle">
+  <div class="card-body">
+    <h3 class="h5" id="studentPhotoTitle">Registrar foto del alumno</h3>
+    <p class="text-muted">Tomá una fotografía para agregarla a su perfil.</p>
+    <div id="photoStatus" class="small mb-2" role="status" aria-live="polite"></div>
+    <video id="studentCamera" class="w-100 rounded bg-dark mb-2" autoplay playsinline hidden></video>
+    <canvas id="studentPhotoCanvas" hidden></canvas>
+    <img id="studentPhotoPreview" class="img-fluid rounded mb-2" alt="Vista previa de la foto del alumno" hidden>
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" id="startStudentCamera" class="btn btn-outline-primary"><i class="fa-solid fa-camera"></i> Abrir cámara</button>
+      <button type="button" id="captureStudentPhoto" class="btn btn-primary" hidden>Tomar foto</button>
+      <button type="button" id="retakeStudentPhoto" class="btn btn-outline-secondary" hidden>Repetir</button>
+      <button type="button" id="saveStudentPhoto" class="btn btn-success" hidden>Guardar foto</button>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% if session.rol in ('entrada', 'preceptor') and usuario.rol == 'alumno' and not asistencia_hoy %}
+<form method="post" action="{{ url_for('marcar_entrada', alumno_id=usuario.id) }}" class="qr-entry-form">
+  <button type="submit" class="btn btn-success qr-entry-button"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> {{ 'Marcar entrada' if session.rol == 'entrada' else 'Registrar asistencia' }}</button>
+</form>
+{% endif %}
+{% if asistencia_hoy and session.rol in ('entrada', 'preceptor') %}
+<a href="{{ url_for('dashboard_entrada' if session.rol == 'entrada' else 'dashboard_preceptor', scan=1) }}" class="btn btn-primary qr-back-button mb-2"><i class="fa-solid fa-check" aria-hidden="true"></i> Aceptar</a>
+{% endif %}
+{% if not asistencia_hoy %}
+<a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary qr-back-button">Volver al panel</a>
+{% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if session.rol == 'entrada' and usuario.rol == 'alumno' and not usuario.profile_photo and not asistencia_hoy %}
+<script>
+(() => {
+  const video = document.getElementById('studentCamera');
+  const canvas = document.getElementById('studentPhotoCanvas');
+  const preview = document.getElementById('studentPhotoPreview');
+  const status = document.getElementById('photoStatus');
+  const startButton = document.getElementById('startStudentCamera');
+  const captureButton = document.getElementById('captureStudentPhoto');
+  const retakeButton = document.getElementById('retakeStudentPhoto');
+  const saveButton = document.getElementById('saveStudentPhoto');
+  let stream = null;
+  let photoData = null;
+
+  function stopCamera() {
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    stream = null;
+    video.srcObject = null;
+    video.hidden = true;
+    captureButton.hidden = true;
+  }
+
+  async function openCamera() {
+    status.textContent = '';
+    if (!navigator.mediaDevices?.getUserMedia) {
+      status.textContent = 'La cámara requiere HTTPS y un navegador compatible.';
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      video.hidden = false;
+      captureButton.hidden = false;
+      startButton.hidden = true;
+    } catch (error) {
+      status.textContent = 'No se pudo abrir la cámara: ' + (error.message || error);
+    }
+  }
+
+  startButton.addEventListener('click', openCamera);
+  captureButton.addEventListener('click', () => {
+    if (!video.videoWidth || !video.videoHeight) {
+      status.textContent = 'La cámara todavía se está iniciando. Intentá nuevamente.';
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    photoData = canvas.toDataURL('image/jpeg', 0.88);
+    preview.src = photoData;
+    preview.hidden = false;
+    stopCamera();
+    startButton.hidden = true;
+    retakeButton.hidden = false;
+    saveButton.hidden = false;
+    status.textContent = 'Revisá la imagen antes de guardarla.';
+  });
+
+  retakeButton.addEventListener('click', () => {
+    preview.hidden = true;
+    retakeButton.hidden = true;
+    saveButton.hidden = true;
+    startButton.hidden = false;
+    photoData = null;
+    openCamera();
+  });
+
+  saveButton.addEventListener('click', async () => {
+    if (!photoData) return;
+    saveButton.disabled = true;
+    status.textContent = 'Guardando foto…';
+    try {
+      const response = await fetch('{{ url_for("guardar_foto_alumno", alumno_id=usuario.id) }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ photo: photoData })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'No se pudo guardar la foto.');
+      status.textContent = 'Foto guardada correctamente.';
+      window.location.reload();
+    } catch (error) {
+      status.textContent = error.message || 'Error al guardar la foto.';
+      saveButton.disabled = false;
+    }
+  });
+
+  window.addEventListener('pagehide', stopCamera);
+})();
+</script>
+{% endif %}
+{% endblock %}

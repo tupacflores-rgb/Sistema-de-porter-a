@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Control de entrada</h2>
+<p>Escaneá el QR del alumno para registrar su llegada.</p>
+<button type="button" class="btn btn-primary" id="btnScan">Escanear QR</button>
+
+<div class="modal fade" id="scannerModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content scanner-modal-content">
+      <div class="scanner-stage" id="scannerStage">
+        <video id="video" class="scanner-video" autoplay playsinline muted></video>
+        <canvas id="canvas" hidden></canvas>
+        <canvas id="faceCanvas" hidden></canvas>
+        <header class="scanner-topbar">
+          <span class="scanner-brand"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> Control de entrada</span>
+          <button type="button" class="scanner-close" id="btnStop" aria-label="Cerrar escáner"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        </header>
+        <div class="scanner-guide">
+          <p id="scanStatus" class="scanner-status" role="status" aria-live="polite">Iniciando cámara…</p>
+          <div class="scanner-frame" aria-hidden="true">
+            <span class="scanner-corner scanner-corner-tl"></span><span class="scanner-corner scanner-corner-tr"></span>
+            <span class="scanner-corner scanner-corner-bl"></span><span class="scanner-corner scanner-corner-br"></span>
+            <span class="scanner-line"></span>
+            <svg class="scanner-face-outline" viewBox="0 0 200 240" aria-hidden="true">
+              <path d="M100 18c-40 0-67 29-67 73v31c0 50 30 94 67 94s67-44 67-94V91c0-44-27-73-67-73Z M72 104h1 M127 104h1 M80 151c12 10 28 10 40 0" />
+            </svg>
+          </div>
+          <p class="scanner-hint">Centrá el código QR dentro del marco</p>
+          <section id="scannerResult" class="scanner-result" aria-live="polite" hidden>
+            <h2 id="scannerResultTitle"></h2>
+            <p id="scannerResultMessage"></p>
+            <button type="button" class="btn scanner-result-accept" id="scannerResultAccept">Aceptar · escanear otro</button>
+          </section>
+          <button type="button" class="btn scanner-retry" id="scannerRetry" hidden>Volver a intentar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script>
+let video, canvas, ctx, faceCanvas, faceContext, scanning = false, stream = null;
+let faceProbePending = false;
+let faceProbeEnabled = true;
+let lastFaceProbe = 0;
+let pendingFaceId = null;
+let faceProbeController = null;
+const modalElement = document.getElementById('scannerModal');
+const scannerModal = new bootstrap.Modal(modalElement);
+const statusElement = document.getElementById('scanStatus');
+const retryButton = document.getElementById('scannerRetry');
+const scannerStage = document.getElementById('scannerStage');
+const scannerResult = document.getElementById('scannerResult');
+
+window.addEventListener('DOMContentLoaded', () => {
+  video = document.getElementById('video');
+  canvas = document.getElementById('canvas');
+  ctx = canvas.getContext('2d');
+  faceCanvas = document.getElementById('faceCanvas');
+  faceContext = faceCanvas.getContext('2d');
+  document.getElementById('btnScan').addEventListener('click', openScanner);
+  document.getElementById('btnStop').addEventListener('click', () => {
+    stopScanner();
+    scannerModal.hide();
+  });
+  retryButton.addEventListener('click', startCamera);
+  document.getElementById('scannerResultAccept').addEventListener('click', openScanner);
+  modalElement.addEventListener('hidden.bs.modal', stopScanner);
+  if (new URLSearchParams(window.location.search).get('scan') === '1') openScanner();
+});
+
+function openScanner() {
+  scannerStage.classList.remove('is-face', 'is-result', 'is-duplicate');
+  scannerResult.hidden = true;
+  statusElement.textContent = 'Iniciando cámara…';
+  retryButton.hidden = true;
+  faceProbeEnabled = true;
+  lastFaceProbe = 0;
+  pendingFaceId = null;
+  scannerModal.show();
+  startCamera();
+}
+
+async function startCamera() {
+  stopScanner();
+  statusElement.textContent = 'Iniciando cámara…';
+  retryButton.hidden = true;
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('La cámara requiere HTTPS y un navegador compatible.');
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    video.srcObject = stream;
+    await video.play();
+    scanning = true;
+    statusElement.textContent = 'Apuntá el QR hacia la cámara';
+    requestAnimationFrame(tick);
+  } catch (error) {
+    statusElement.textContent = error.name === 'NotAllowedError'
+      ? 'Permiso de cámara denegado. Revisá la configuración del navegador.'
+      : error.name === 'NotFoundError' ? 'No se detectó una cámara en este dispositivo.' : (error.message || 'No se pudo acceder a la cámara.');
+    retryButton.hidden = false;
+  }
+}
+
+function stopScanner() {
+  scanning = false;
+  if (faceProbeController) faceProbeController.abort();
+  faceProbeController = null;
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  stream = null;
+  if (video) video.srcObject = null;
+}
+
+function tick() {
+  if (!scanning) return;
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if (code) {
+      stopScanner();
+      statusElement.textContent = 'QR detectado. Validando…';
+      validateToken(code.data);
+      return;
+    }
+    if (faceProbeEnabled && !faceProbePending && performance.now() - lastFaceProbe >= 1100) {
+      lastFaceProbe = performance.now();
+      probeFace();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+async function probeFace() {
+  if (!scanning || faceProbePending || !video.videoWidth) return;
+  faceProbePending = true;
+  const scale = Math.min(1, 640 / video.videoWidth);
+  faceCanvas.width = Math.round(video.videoWidth * scale);
+  faceCanvas.height = Math.round(video.videoHeight * scale);
+  faceContext.drawImage(video, 0, 0, faceCanvas.width, faceCanvas.height);
+  faceProbeController = new AbortController();
+  try {
+    const response = await fetch('{{ url_for("reconocer_rostro") }}', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frame: faceCanvas.toDataURL('image/jpeg', 0.68), confirm_user_id: pendingFaceId }),
+      credentials: 'same-origin', signal: faceProbeController.signal
+    });
+    const data = await response.json();
+    if (data.feature_unavailable) {
+      faceProbeEnabled = false;
+      return;
+    }
+    if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo analizar el rostro.');
+    scannerStage.classList.toggle('is-face', Boolean(data.face_detected));
+    if (data.multiple_faces) {
+      pendingFaceId = null;
+      statusElement.textContent = data.message;
+    } else if (data.identified && data.attendance) {
+      showFaceAttendanceResult(data);
+    } else if (data.identified) {
+      pendingFaceId = data.user.id;
+      statusElement.textContent = `Rostro de ${data.user.nombre} detectado. Mantenete frente a la cámara para confirmar…`;
+    } else {
+      pendingFaceId = null;
+      statusElement.textContent = data.face_detected ? 'Rostro detectado; verificando identidad…' : 'Apuntá un QR o un rostro hacia la cámara';
+    }
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      console.warn('No se pudo consultar el reconocimiento facial:', error);
+      statusElement.textContent = 'No se pudo analizar el rostro. El lector QR sigue activo.';
+    }
+  } finally {
+    faceProbePending = false;
+    faceProbeController = null;
+  }
+}
+
+function showFaceAttendanceResult(data) {
+  scanning = false;
+  stopScanner();
+  const duplicate = data.attendance.status === 'duplicate';
+  scannerStage.classList.remove('is-face');
+  scannerStage.classList.add('is-result');
+  scannerStage.classList.toggle('is-duplicate', duplicate);
+  statusElement.textContent = '';
+  document.getElementById('scannerResultTitle').textContent = duplicate ? 'Ingreso ya registrado' : 'Asistencia registrada';
+  document.getElementById('scannerResultMessage').textContent = `${data.user.nombre} ${data.user.apellido}. ${data.attendance.message}`;
+  scannerResult.hidden = false;
+}
+
+async function validateToken(token) {
+  try {
+    const response = await fetch('{{ url_for("validate_qr") }}', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }), credentials: 'same-origin'
+    });
+    const data = await response.json();
+    if (data.ok) window.location.href = '/qr/' + encodeURIComponent(token);
+    else throw new Error(data.error || 'Token inválido.');
+  } catch (error) {
+    statusElement.textContent = error.message || 'No se pudo validar el código.';
+    retryButton.hidden = false;
+  }
+}
+</script>
+{% endblock %}

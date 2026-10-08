@@ -1,0 +1,5 @@
+certs/local-cert.pem
+certs/local-key.pem
+certs/rootCA.pem
+certs/rootCA-key.pem
+.import_staging/

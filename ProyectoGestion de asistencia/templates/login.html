@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="login-shell">
+  <section class="login-panel">
+    <div class="login-kicker">Portal escolar</div>
+    <h2 class="mb-4">Iniciar sesión</h2>
+    <form method="post">
+      <div class="mb-3">
+        <label>Correo electrónico</label>
+        <input type="email" name="email" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label>Contraseña</label>
+        <input type="password" name="password" class="form-control" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+    </form>
+    <p class="mt-3 text-muted">Admin: admin@colegio.com / admin123</p>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Gestión de Usuarios</h2>
+<a href="{{ url_for('nuevo_usuario') }}" class="btn btn-success mb-3">+ Nuevo usuario</a>
+<form method="get" class="row g-2 mb-3" role="search">
+  <div class="col-sm-8 col-md-6">
+    <label class="visually-hidden" for="buscarUsuarios">Buscar usuarios</label>
+    <input id="buscarUsuarios" type="search" name="q" value="{{ search }}" class="form-control" placeholder="Buscar por DNI, nombre o apellido">
+  </div>
+  <div class="col-auto"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button></div>
+  {% if search %}<div class="col-auto"><a href="{{ url_for('gestion_usuarios') }}" class="btn btn-outline-secondary">Limpiar</a></div>{% endif %}
+</form>
+{% if search %}<p class="text-muted">Resultados para: <strong>{{ search }}</strong></p>{% endif %}
+<div class="table-responsive">
+<table class="table table-striped">
+  <thead>
+    <tr><th>Foto</th><th>Nombre</th><th>Apellido</th><th>DNI</th><th>Email</th><th>Rol</th><th>Curso</th><th>Turno</th><th>Capacitación</th><th>Acciones</th></tr>
+  </thead>
+  <tbody>
+    {% for u in usuarios %}
+    <tr>
+      <td>
+        {% if u.profile_photo %}
+        <img src="{{ url_for('static', filename='uploads/' ~ u.profile_photo) }}" alt="Foto" class="img-thumbnail" style="max-width: 50px;">
+        {% else %}
+        -
+        {% endif %}
+      </td>
+      <td>{{ u.nombre }}</td>
+      <td>{{ u.apellido or '-' }}</td>
+      <td>{{ u.dni or '-' }}</td>
+      <td>{{ u.email }}</td>
+      <td>{{ u.rol }}</td>
+      <td>{{ u.curso or '-' }}</td>
+      <td>{{ u.turno or '-' }}</td>
+      <td>{{ u.capacitacion or '-' }}</td>
+      <td>
+        <a href="{{ url_for('editar_usuario', id=u.id) }}" class="btn btn-sm btn-warning">Editar</a>
+        <a href="{{ url_for('ver_qr_usuario', id=u.id) }}" class="btn btn-sm btn-info">QR</a>
+        {% if u.rol != 'directivo' %}
+        <a href="{{ url_for('eliminar_usuario', id=u.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar usuario?')">Eliminar</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if not usuarios %}<p class="alert alert-secondary">No se encontraron usuarios.</p>{% endif %}
+{% endblock %}

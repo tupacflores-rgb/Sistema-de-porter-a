@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Registrar Asistencia</h2>
+<form method="post">
+  <div class="mb-3">
+    <label>Fecha</label>
+    <input type="date" name="fecha" class="form-control" value="{{ hoy }}" required>
+  </div>
+  <div class="table-responsive">
+  <table class="table">
+    <thead><tr><th>Alumno</th><th>Estado</th></tr></thead>
+    <tbody>
+      {% for al in alumnos %}
+      <tr>
+        <td>{{ al.nombre }}</td>
+        <td>
+          <select name="estado_{{ al.id }}" class="form-select">
+            <option value="">-- Sin registro --</option>
+            <option value="presente">Presente</option>
+            <option value="ausente">Ausente</option>
+            <option value="tardanza">Tardanza</option>
+          </select>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <button type="submit" class="btn btn-primary">Guardar asistencia</button>
+</form>
+{% endblock %}
