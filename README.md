@@ -26,6 +26,10 @@ El reconocimiento facial es una alternativa opcional al QR para registrar la lle
 - **Copias de seguridad:** creación y administración de respaldos de la base de datos.
 - **Acceso móvil:** escaneo con la cámara del teléfono a través de HTTPS.
 
+## Próximas funcionalidades
+
+- **Notificaciones automáticas:** avisos por Telegram o correo electrónico para eventos de asistencia y novedades del sistema. Esta función está planificada y todavía no forma parte de la implementación actual.
+
 ## Roles del sistema
 
 | Rol | Acceso principal |
@@ -54,7 +58,7 @@ El reconocimiento facial es una alternativa opcional al QR para registrar la lle
 
 ## Instalación y ejecución
 
-Ejecuta los siguientes pasos desde la carpeta que contiene `app.py` y `requirements.txt`.
+Ejecuta los siguientes pasos desde la raíz del repositorio. La aplicación se encuentra dentro de `ProyectoGestion de asistencia/`.
 
 ### Windows (PowerShell)
 
@@ -65,6 +69,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install cmake
 python -m pip install -r requirements.txt
+Set-Location 'ProyectoGestion de asistencia'
 python app.py
 ```
 
@@ -77,6 +82,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
+cd 'ProyectoGestion de asistencia'
 python app.py
 ```
 
@@ -123,7 +129,6 @@ Las pruebas disponibles validan funciones del servicio facial sin requerir cáma
 ProyectoGestion de asistencia/
 ├── app.py                  # Aplicación Flask, rutas y lógica de negocio
 ├── face_service.py         # Validación de imágenes y utilidades faciales
-├── requirements.txt        # Dependencias Python
 ├── templates/              # Vistas HTML/Jinja2
 ├── static/                 # Recursos estáticos y fotos cargadas
 ├── backup_db/              # Copias de seguridad de la base de datos
@@ -131,6 +136,8 @@ ProyectoGestion de asistencia/
 ├── HTTPS_MOVIL.md          # Configuración HTTPS para acceso móvil
 └── RECONOCIMIENTO_FACIAL.md # Guía técnica y configuración facial
 ```
+
+El archivo de dependencias se encuentra en la raíz del repositorio: `requirements.txt`.
 
 ## Privacidad y seguridad
 
