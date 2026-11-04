@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.env
+
+# Datos locales de la aplicación
+/ProyectoGestion de asistencia/database.db
+/ProyectoGestion de asistencia/backup_db/*
+/ProyectoGestion de asistencia/backups/*
+/ProyectoGestion de asistencia/.import_staging/*
+/ProyectoGestion de asistencia/static/uploads/*
+
+# Certificados y claves locales
+/ProyectoGestion de asistencia/certs/*
+
+# Notas de trabajo locales
+/Peticiones.txt

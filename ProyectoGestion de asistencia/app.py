@@ -31,10 +31,9 @@ from face_service import (
 
 HORARIOS_INICIO = {'mañana': (8, 0), 'tarde': (13, 0)}
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATIC_FOLDER = os.path.join(PROJECT_ROOT, 'static')
-DATABASE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database.db')
 APP_FOLDER = os.path.dirname(os.path.abspath(__file__))
+STATIC_FOLDER = os.path.join(APP_FOLDER, 'static')
+DATABASE_PATH = os.path.join(APP_FOLDER, 'database.db')
 BACKUP_FOLDER = os.path.join(APP_FOLDER, 'backup_db')
 LEGACY_BACKUP_FOLDER = os.path.join(APP_FOLDER, 'backups')
 IMPORT_FOLDER = os.path.join(APP_FOLDER, '.import_staging')
