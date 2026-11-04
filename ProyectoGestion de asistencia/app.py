@@ -10,6 +10,9 @@ import io
 import json
 import re
 import unicodedata
+from urllib.error import URLError, HTTPError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 from PIL import Image
 from openpyxl import load_workbook
 try:
@@ -18,17 +21,6 @@ except ImportError:
     qrcode = None
 from datetime import date, datetime
 from functools import wraps
-from typing import Any
-from face_service import (
-    FaceImageError,
-    FaceRecognitionUnavailable,
-    closest_match,
-    extract_encodings,
-    extract_single_encoding_from_file,
-    image_data_url_to_bytes,
-    serialize_encoding,
-)
-
 HORARIOS_INICIO = {'mañana': (8, 0), 'tarde': (13, 0)}
 
 APP_FOLDER = os.path.dirname(os.path.abspath(__file__))
@@ -47,7 +39,35 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(BACKUP_FOLDER, exist_ok=True)
 os.makedirs(IMPORT_FOLDER, exist_ok=True)
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
-app.config['FACE_MATCH_TOLERANCE'] = float(os.environ.get('FACE_MATCH_TOLERANCE', '0.48'))
+
+
+def send_late_arrival_telegram(alumno, fecha: str, hora: str) -> bool:
+    """Envía un aviso opcional sin impedir que se registre la asistencia."""
+    bot_token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+    if not bot_token or not chat_id:
+        return False
+
+    message = (
+        'Aviso de llegada tarde\n'
+        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
+        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
+        f'Fecha: {fecha}\n'
+        f'Hora de llegada: {hora}'
+    )
+    endpoint = f'https://api.telegram.org/bot{bot_token}/sendMessage'
+    payload = urlencode({'chat_id': chat_id, 'text': message}).encode('utf-8')
+    try:
+        request = Request(endpoint, data=payload, method='POST')
+        with urlopen(request, timeout=5) as response:
+            result = json.loads(response.read().decode('utf-8'))
+        if not result.get('ok'):
+            app.logger.error('Telegram rechazó el aviso de llegada tarde.')
+            return False
+        return True
+    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError):
+        app.logger.exception('No se pudo enviar el aviso de llegada tarde por Telegram.')
+        return False
 
 # Preserve existing backup files and their database history when moving to backup_db/.
 if os.path.isdir(LEGACY_BACKUP_FOLDER):
@@ -801,28 +821,11 @@ def nuevo_usuario():
         except ValueError as error:
             flash(str(error))
             return render_template('editar_usuario.html', usuario=None, titulo='Nuevo Usuario')
-        face_consent = int(rol == 'alumno' and request.form.get('face_consent') == '1')
-        face_encoding = None
-        if face_consent and not photo_filename:
-            flash('Para registrar reconocimiento facial, adjuntá una foto del alumno además de otorgar consentimiento.')
-            return render_template('editar_usuario.html', usuario=None, titulo='Nuevo Usuario')
-        if face_consent and photo_filename:
-            try:
-                face_encoding = serialize_encoding(extract_single_encoding_from_file(
-                    os.path.join(app.config['UPLOAD_FOLDER'], photo_filename)
-                ))
-            except (FaceImageError, FaceRecognitionUnavailable) as error:
-                try:
-                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
-                except OSError:
-                    app.logger.exception('No se pudo limpiar una foto de registro facial inválida')
-                flash(str(error))
-                return render_template('editar_usuario.html', usuario=None, titulo='Nuevo Usuario')
         conn = get_db()
         try:
-            cursor = conn.execute("INSERT INTO usuarios (email, password, nombre, apellido, dni, rol, curso, turno, hora_entrada_oficial, capacitacion, profile_photo, face_encoding, face_consent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            cursor = conn.execute("INSERT INTO usuarios (email, password, nombre, apellido, dni, rol, curso, turno, hora_entrada_oficial, capacitacion, profile_photo) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                          (email, password, nombre, apellido, dni, rol, curso, turno,
-                          hora_entrada_oficial, capacitacion, photo_filename, face_encoding, face_consent))
+                          hora_entrada_oficial, capacitacion, photo_filename))
             user_id = cursor.lastrowid
             qr_token = update_user_qr_token(conn, user_id, dni)
             conn.commit()
@@ -884,34 +887,10 @@ def editar_usuario(id):
             flash(str(error))
             conn.close()
             return render_template('editar_usuario.html', usuario=usuario, titulo='Editar Usuario')
-        face_consent = int(rol == 'alumno' and request.form.get('face_consent') == '1')
-        face_encoding = usuario['face_encoding']
-        if not face_consent:
-            face_encoding = None
-        elif new_photo or not face_encoding:
-            face_encoding = None
-            if photo_filename:
-                try:
-                    face_encoding = serialize_encoding(extract_single_encoding_from_file(
-                        os.path.join(app.config['UPLOAD_FOLDER'], photo_filename)
-                    ))
-                except (FaceImageError, FaceRecognitionUnavailable) as error:
-                    if new_photo:
-                        try:
-                            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], new_photo))
-                        except OSError:
-                            app.logger.exception('No se pudo limpiar una foto facial inválida')
-                    flash(str(error))
-                    conn.close()
-                    return render_template('editar_usuario.html', usuario=usuario, titulo='Editar Usuario')
-            else:
-                flash('Para registrar reconocimiento facial, adjuntá una foto del alumno además de otorgar consentimiento.')
-                conn.close()
-                return render_template('editar_usuario.html', usuario=usuario, titulo='Editar Usuario')
         qr_token = generate_qr_token(dni, id) if dni else None
-        conn.execute("UPDATE usuarios SET nombre=?, apellido=?, dni=?, rol=?, curso=?, turno=?, hora_entrada_oficial=?, capacitacion=?, profile_photo=?, qr_token=?, face_encoding=?, face_consent=? WHERE id=?",
+        conn.execute("UPDATE usuarios SET nombre=?, apellido=?, dni=?, rol=?, curso=?, turno=?, hora_entrada_oficial=?, capacitacion=?, profile_photo=?, qr_token=? WHERE id=?",
                  (nombre, apellido, dni, rol, curso, turno, hora_entrada_oficial,
-                  capacitacion, photo_filename, qr_token, face_encoding, face_consent, id))
+                  capacitacion, photo_filename, qr_token, id))
         if request.form['password']:
             conn.execute("UPDATE usuarios SET password=? WHERE id=?",
                          (generate_password_hash(request.form['password']), id))
@@ -1028,137 +1007,6 @@ def validate_qr():
     return jsonify({'ok': True, 'usuario': {'id': usuario['id'], 'nombre': usuario['nombre'], 'apellido': usuario['apellido'], 'rol': usuario['rol'], 'curso': usuario['curso'], 'turno': usuario['turno'], 'capacitacion': usuario['capacitacion'], 'profile_photo': usuario['profile_photo']}})
 
 
-def register_face_attendance(alumno_id: int) -> dict[str, Any]:
-    """Registra una única entrada diaria y aplica un cooldown de cinco minutos."""
-    ahora = datetime.now()
-    fecha = ahora.date().isoformat()
-    hora = ahora.strftime('%H:%M:%S')
-    conn = get_db()
-    try:
-        conn.execute('BEGIN IMMEDIATE')
-        alumno = conn.execute(
-            "SELECT id, turno, hora_entrada_oficial FROM usuarios WHERE id=? AND rol='alumno' AND face_consent=1",
-            (alumno_id,),
-        ).fetchone()
-        if not alumno:
-            conn.rollback()
-            return {'status': 'unavailable', 'message': 'El usuario no está habilitado para reconocimiento facial.'}
-
-        existente = conn.execute(
-            'SELECT hora, estado FROM asistencias WHERE alumno_id=? AND fecha=? ORDER BY id LIMIT 1',
-            (alumno_id, fecha),
-        ).fetchone()
-        if existente:
-            cooldown = 0
-            try:
-                hora_previa = datetime.strptime(existente['hora'], '%H:%M:%S').time()
-                marcada = datetime.combine(ahora.date(), hora_previa)
-                cooldown = max(0, 300 - int((ahora - marcada).total_seconds()))
-            except (TypeError, ValueError):
-                pass
-            conn.commit()
-            if cooldown:
-                message = f"La entrada ya fue registrada hace menos de cinco minutos ({existente['hora'] or 'hora no disponible'})."
-            else:
-                message = f"La entrada de hoy ya fue registrada a las {existente['hora'] or 'hora no disponible'}."
-            return {
-                'status': 'duplicate',
-                'message': message,
-                'hora': existente['hora'],
-                'estado': existente['estado'],
-                'cooldown_seconds': cooldown,
-            }
-
-        inicio = get_official_start(alumno)
-        estado = 'tardanza' if inicio and (ahora.hour, ahora.minute) > inicio else 'presente'
-        conn.execute(
-            'INSERT INTO asistencias (alumno_id, fecha, estado, hora) VALUES (?,?,?,?)',
-            (alumno_id, fecha, estado, hora),
-        )
-        conn.commit()
-        return {
-            'status': 'registered',
-            'message': f"Entrada registrada a las {hora}: {'Llegada tarde' if estado == 'tardanza' else 'A tiempo'}.",
-            'hora': hora,
-            'estado': estado,
-            'cooldown_seconds': 300,
-        }
-    except sqlite3.Error:
-        conn.rollback()
-        app.logger.exception('No se pudo registrar asistencia facial del alumno %s', alumno_id)
-        raise
-    finally:
-        conn.close()
-
-
-@app.route('/asistencia/rostro/reconocer', methods=['POST'])
-@login_required
-@rol_requerido('entrada', 'preceptor')
-def reconocer_rostro():
-    """Analiza una captura de cámara y registra al alumno que coincida."""
-    data = request.get_json(silent=True) or {}
-    try:
-        image_bytes = image_data_url_to_bytes(data.get('frame'))
-        encodings = extract_encodings(image_bytes)
-    except FaceRecognitionUnavailable as error:
-        return jsonify({'ok': False, 'error': str(error), 'feature_unavailable': True}), 503
-    except FaceImageError as error:
-        return jsonify({'ok': False, 'error': str(error)}), 400
-
-    if not encodings:
-        return jsonify({'ok': True, 'face_detected': False, 'identified': False})
-    if len(encodings) != 1:
-        return jsonify({
-            'ok': True,
-            'face_detected': True,
-            'identified': False,
-            'multiple_faces': True,
-            'message': 'Debe aparecer una sola persona frente a la cámara.',
-        })
-
-    conn = get_db()
-    try:
-        candidates = conn.execute(
-            "SELECT id, nombre, apellido, turno, face_encoding FROM usuarios "
-            "WHERE rol='alumno' AND face_consent=1 AND face_encoding IS NOT NULL"
-        ).fetchall()
-    finally:
-        conn.close()
-
-    try:
-        match = closest_match(encodings[0], candidates, app.config['FACE_MATCH_TOLERANCE'])
-    except FaceRecognitionUnavailable as error:
-        return jsonify({'ok': False, 'error': str(error), 'feature_unavailable': True}), 503
-    except FaceImageError as error:
-        return jsonify({'ok': False, 'error': str(error)}), 400
-    if not match:
-        return jsonify({'ok': True, 'face_detected': True, 'identified': False})
-
-    alumno, distance = match
-    if data.get('confirm_user_id') != alumno['id']:
-        return jsonify({
-            'ok': True,
-            'face_detected': True,
-            'identified': True,
-            'confirmed': False,
-            'user': {'id': alumno['id'], 'nombre': alumno['nombre'], 'apellido': alumno['apellido']},
-            'distance': round(distance, 4),
-        })
-    try:
-        attendance = register_face_attendance(alumno['id'])
-    except sqlite3.Error:
-        return jsonify({'ok': False, 'error': 'No se pudo guardar la asistencia. Intentá nuevamente.'}), 500
-    if attendance['status'] == 'unavailable':
-        return jsonify({'ok': False, 'error': attendance['message']}), 409
-    return jsonify({
-        'ok': True,
-        'face_detected': True,
-        'identified': True,
-        'user': {'id': alumno['id'], 'nombre': alumno['nombre'], 'apellido': alumno['apellido']},
-        'distance': round(distance, 4),
-        'attendance': attendance,
-    })
-
 @app.route('/entrada/foto/<int:alumno_id>', methods=['POST'])
 @login_required
 @rol_requerido('entrada')
@@ -1172,7 +1020,7 @@ def guardar_foto_alumno(alumno_id):
 
     conn = get_db()
     alumno = conn.execute(
-        "SELECT id, rol, profile_photo, face_consent FROM usuarios WHERE id=?", (alumno_id,)
+        "SELECT id, rol, profile_photo FROM usuarios WHERE id=?", (alumno_id,)
     ).fetchone()
     if not alumno or alumno['rol'] != 'alumno':
         conn.close()
@@ -1184,15 +1032,10 @@ def guardar_foto_alumno(alumno_id):
     filename = None
     try:
         filename = save_photo(photo_data=photo_data)
-        face_encoding = None
-        if alumno['face_consent']:
-            face_encoding = serialize_encoding(extract_single_encoding_from_file(
-                os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            ))
         cursor = conn.execute(
-            "UPDATE usuarios SET profile_photo=?, face_encoding=? WHERE id=? AND rol='alumno' "
-            "AND (profile_photo IS NULL OR profile_photo='') AND face_consent=?",
-            (filename, face_encoding, alumno_id, alumno['face_consent'])
+            "UPDATE usuarios SET profile_photo=? WHERE id=? AND rol='alumno' "
+            "AND (profile_photo IS NULL OR profile_photo='')",
+            (filename, alumno_id)
         )
         if cursor.rowcount != 1:
             conn.rollback()
@@ -1201,7 +1044,7 @@ def guardar_foto_alumno(alumno_id):
             return jsonify({'ok': False, 'error': 'La foto del alumno cambió. Actualizá la página.'}), 409
         conn.commit()
         return jsonify({'ok': True, 'photo_url': url_for('static', filename='uploads/' + filename)})
-    except (ValueError, FaceImageError, FaceRecognitionUnavailable) as error:
+    except ValueError as error:
         conn.rollback()
         if filename:
             try:
@@ -1229,7 +1072,7 @@ def marcar_entrada(alumno_id):
     fecha = ahora.date().isoformat()
     hora = ahora.strftime('%H:%M:%S')
     conn = get_db()
-    alumno = conn.execute("SELECT id, turno, hora_entrada_oficial, rol, qr_token FROM usuarios WHERE id=?", (alumno_id,)).fetchone()
+    alumno = conn.execute("SELECT id, nombre, apellido, curso, turno, hora_entrada_oficial, rol, qr_token FROM usuarios WHERE id=?", (alumno_id,)).fetchone()
     if not alumno or alumno['rol'] != 'alumno':
         conn.close()
         flash('El QR no corresponde a un alumno.')
@@ -1244,6 +1087,8 @@ def marcar_entrada(alumno_id):
                  (alumno_id, fecha, estado, hora))
     conn.commit()
     conn.close()
+    if estado == 'tardanza':
+        send_late_arrival_telegram(alumno, fecha, hora)
     flash(f'Entrada registrada a las {hora}. Estado: {estado}.')
     panel = 'dashboard_entrada' if session.get('rol') == 'entrada' else 'dashboard_preceptor'
     return redirect(url_for(panel, scan=1))

@@ -167,27 +167,10 @@ label { margin-bottom: .45rem; color: var(--ink); font-weight: 700; }
 .scanner-corner-bl { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; border-radius: 0 0 0 18px; }
 .scanner-corner-br { right: -2px; bottom: -2px; border-width: 0 4px 4px 0; border-radius: 0 0 18px; }
 .scanner-line { position: absolute; right: 8px; left: 8px; top: 10%; height: 2px; background: #64e5ca; box-shadow: 0 0 12px 3px rgba(100,229,202,.55); animation: scanner-sweep 2.2s ease-in-out infinite alternate; }
-.scanner-face-outline { display: none; position: absolute; inset: 8%; width: 84%; height: 84%; overflow: visible; fill: none; stroke: #64e5ca; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 9px rgba(100,229,202,.8)); animation: face-outline-pulse 1.6s ease-in-out infinite alternate; }
-.scanner-stage.is-face .scanner-frame { border-color: transparent; box-shadow: none; }
-.scanner-stage.is-face .scanner-corner, .scanner-stage.is-face .scanner-line { display: none; }
-.scanner-stage.is-face .scanner-face-outline { display: block; }
-.scanner-result { display: grid; justify-items: center; gap: .8rem; width: min(92vw, 520px); padding: clamp(1.5rem, 5vw, 2.5rem); border: 1px solid rgba(100,229,202,.45); border-radius: 20px; color: #fff; background: rgba(7,19,25,.86); box-shadow: 0 18px 56px rgba(0,0,0,.35); text-align: center; backdrop-filter: blur(10px); }
-.scanner-result h2 { margin: 0; color: #8cf3da; }
-.scanner-result p { margin: 0; color: rgba(255,255,255,.9); }
-.scanner-result-accept { margin-top: .35rem; border-color: #64e5ca; color: #071319; background: #64e5ca; }
-.scanner-result-accept:hover { color: #071319; background: #a3f5e4; }
-.scanner-result[hidden], .scanner-retry[hidden] { display: none !important; }
-.scanner-stage.is-result .scanner-frame, .scanner-stage.is-result .scanner-hint, .scanner-stage.is-result .scanner-status { display: none; }
-.scanner-stage.is-duplicate::after { background: linear-gradient(180deg, rgba(78, 6, 10, .82), rgba(120, 12, 20, .48) 48%, rgba(55, 5, 9, .88)); }
-.scanner-stage.is-duplicate .scanner-result { border-color: rgba(255,145,145,.75); background: rgba(83,10,15,.91); }
-.scanner-stage.is-duplicate .scanner-result h2 { color: #ffb3b3; }
-.scanner-stage.is-duplicate .scanner-result-accept { border-color: #ffaaaa; color: #4e0a0f; background: #ffaaaa; }
-.scanner-stage.is-duplicate .scanner-result-accept:hover { background: #ffd1d1; }
 .scanner-hint { max-width: 290px; margin: 0; color: rgba(255,255,255,.82); font-size: .92rem; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
 .scanner-retry { border: 1px solid rgba(255,255,255,.75); color: #fff; background: rgba(4,17,23,.55); }
 .scanner-retry:hover { color: #071319; background: #fff; }
 @keyframes scanner-sweep { to { top: 90%; } }
-@keyframes face-outline-pulse { to { opacity: .58; transform: scale(.96); } }
 @media (prefers-reduced-motion: reduce) { .scanner-line { animation-duration: 5s; } }
 
 .form-page { max-width: 850px; margin: 0 auto; }
@@ -211,14 +194,9 @@ legend { margin-bottom: 1.25rem; font-family: 'Space Grotesk', sans-serif; font-
 .field input[aria-invalid='true'], .field select[aria-invalid='true'] { border-color: #c33f45; box-shadow: 0 0 0 3px rgba(195, 63, 69, .13); }
 .field-error { min-height: 1.2rem; color: #a72d34; font-size: .78rem; font-weight: 600; }
 .form-hint { margin: .7rem 0 0; color: var(--muted); font-size: .85rem; }
-.face-consent { display: flex; align-items: flex-start; gap: .75rem; margin-top: 1.2rem; padding: 1rem; border: 1px solid var(--line); border-radius: 10px; background: #f8fbf9; font-size: .9rem; line-height: 1.45; }
-.face-consent input { flex: 0 0 auto; width: 1.1rem; height: 1.1rem; margin-top: .12rem; accent-color: var(--teal); }
 .sub-label { margin-top: .7rem; }
 .wizard-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .65rem; margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
 .wizard-actions .btn-secondary { margin-right: auto; }
-.camera-actions { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1rem; }
-#cameraPreview { width: min(100%, 480px); margin-top: 1rem; border-radius: 10px; background: #101820; box-shadow: var(--shadow); }
-#photoPreview { width: min(100%, 220px); margin-top: 1rem; border: 1px solid var(--line); border-radius: 10px; }
 .current-photo { display: grid; gap: .5rem; width: fit-content; margin-top: 1.25rem; color: var(--muted); font-size: .82rem; font-weight: 700; }
 .current-photo img { width: 120px; border-radius: 10px; }
 

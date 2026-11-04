@@ -10,7 +10,7 @@
     <ol class="wizard-progress" aria-label="Progreso del formulario">
       <li class="is-active" data-step-indicator="1"><span>1</span><strong>Datos personales</strong></li>
       <li data-step-indicator="2"><span>2</span><strong>Perfil</strong></li>
-      <li data-step-indicator="3"><span>3</span><strong>Foto</strong></li>
+      <li data-step-indicator="3"><span>3</span><strong>Foto de perfil</strong></li>
     </ol>
     <div class="wizard-step is-active" data-step="1">
       <fieldset>
@@ -38,15 +38,9 @@
     </div>
     <div class="wizard-step" data-step="3" hidden>
       <fieldset>
-        <legend>Foto y registro facial</legend>
-        <p class="form-hint">Para habilitar el reconocimiento de asistencia, usá una foto clara, de frente y con una sola persona. Se guarda localmente un vector facial de 128 dimensiones.</p>
-        {% if usuario and usuario.face_encoding %}<p class="text-success fw-bold"><i class="fa-solid fa-face-smile" aria-hidden="true"></i> Rostro registrado para reconocimiento.</p>{% endif %}
-        <div class="field"><label for="foto">Subir una imagen</label><input id="foto" type="file" name="foto" accept="image/png, image/jpeg, image/gif" class="form-control"><span class="form-hint">También podés tomarla con la cámara. Al guardar, se analizará para el reconocimiento facial si das tu consentimiento.</span></div>
-        <label class="face-consent" for="faceConsent"><input id="faceConsent" type="checkbox" name="face_consent" value="1" {{ 'checked' if usuario and usuario.face_consent else '' }}><span>Autorizo explícitamente el tratamiento local de esta imagen para generar y guardar un vector biométrico facial para el control de asistencia. Si el alumno es menor, confirmo que cuento con la autorización de su responsable.</span></label>
-        <p class="form-hint">Sin consentimiento, la asistencia por QR y los demás datos del usuario siguen funcionando normalmente. La cámara y los embeddings se procesan en este equipo; el sistema no implementa detección de vida contra fotos o pantallas.</p>
-        <input type="hidden" name="foto_data" id="fotoData">
-        <div class="camera-actions"><button type="button" class="btn btn-outline-secondary" id="btnCamera"><i class="fa-solid fa-camera"></i> Usar cámara</button><button type="button" class="btn btn-outline-primary" id="btnTakePhoto" hidden><i class="fa-solid fa-camera-retro"></i> Tomar foto</button><button type="button" class="btn btn-outline-danger" id="btnStopCamera" hidden>Cerrar cámara</button></div>
-        <video id="cameraPreview" autoplay playsinline hidden></video><canvas id="photoCanvas" hidden></canvas><img id="photoPreview" alt="Vista previa de la foto tomada" hidden>
+        <legend>Foto de perfil</legend>
+        <p class="form-hint">La foto se guarda como imagen de perfil y no se utiliza para reconocimiento facial.</p>
+        <div class="field"><label for="foto">Subir una imagen</label><input id="foto" type="file" name="foto" accept="image/png, image/jpeg, image/gif" class="form-control"><span class="form-hint">Formatos permitidos: PNG, JPG o GIF.</span></div>
         {% if usuario and usuario.profile_photo %}<div class="current-photo"><span>Foto actual</span><img src="{{ url_for('static', filename='uploads/' ~ usuario.profile_photo) }}" alt="Foto de perfil actual"></div>{% endif %}
       </fieldset>
     </div>
@@ -186,46 +180,6 @@
     });
     showStep(0);
 
-    const cameraButton = document.getElementById('btnCamera');
-    const takePhotoButton = document.getElementById('btnTakePhoto');
-    const stopCameraButton = document.getElementById('btnStopCamera');
-    const cameraPreview = document.getElementById('cameraPreview');
-    const photoCanvas = document.getElementById('photoCanvas');
-    const photoPreview = document.getElementById('photoPreview');
-    let cameraStream = null;
-
-    cameraButton.addEventListener('click', async () => {
-      try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-        cameraPreview.srcObject = cameraStream;
-        cameraPreview.hidden = false;
-        takePhotoButton.hidden = false;
-        stopCameraButton.hidden = false;
-        cameraButton.hidden = true;
-      } catch (error) {
-        alert('No se pudo acceder a la cámara: ' + (error.message || error));
-      }
-    });
-
-    takePhotoButton.addEventListener('click', () => {
-      photoCanvas.width = cameraPreview.videoWidth;
-      photoCanvas.height = cameraPreview.videoHeight;
-      photoCanvas.getContext('2d').drawImage(cameraPreview, 0, 0);
-      const photoData = photoCanvas.toDataURL('image/jpeg', 0.9);
-      document.getElementById('fotoData').value = photoData;
-      photoPreview.src = photoData;
-      photoPreview.hidden = false;
-    });
-
-    stopCameraButton.addEventListener('click', () => {
-      if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
-      cameraStream = null;
-      cameraPreview.srcObject = null;
-      cameraPreview.hidden = true;
-      takePhotoButton.hidden = true;
-      stopCameraButton.hidden = true;
-      cameraButton.hidden = false;
-    });
   });
 </script>
 {% endblock %}
