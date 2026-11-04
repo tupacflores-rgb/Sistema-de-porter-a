@@ -1,0 +1,2 @@
+Set-Location "C:\Users\Rolando\Documents\Sistema-de-porter-a\ProyectoGestion de asistencia"
+.\.venv\Scripts\python.exe app.py

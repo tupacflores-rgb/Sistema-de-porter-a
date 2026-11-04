@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 .venv/
+/ProyectoGestion de asistencia/.venv/
 venv/
 env/
 .env

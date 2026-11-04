@@ -9,7 +9,10 @@ import base64
 import io
 import json
 import re
+import smtplib
 import unicodedata
+from email.message import EmailMessage
+from dotenv import load_dotenv
 from urllib.error import URLError, HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -24,6 +27,7 @@ from functools import wraps
 HORARIOS_INICIO = {'mañana': (8, 0), 'tarde': (13, 0)}
 
 APP_FOLDER = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(APP_FOLDER, '.env'))
 STATIC_FOLDER = os.path.join(APP_FOLDER, 'static')
 DATABASE_PATH = os.path.join(APP_FOLDER, 'database.db')
 BACKUP_FOLDER = os.path.join(APP_FOLDER, 'backup_db')
@@ -41,20 +45,13 @@ os.makedirs(IMPORT_FOLDER, exist_ok=True)
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
 
-def send_late_arrival_telegram(alumno, fecha: str, hora: str) -> bool:
-    """Envía un aviso opcional sin impedir que se registre la asistencia."""
+def send_telegram_message(message: str) -> bool:
+    """Envía un mensaje opcional sin impedir la operación principal."""
     bot_token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
     chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if not bot_token or not chat_id:
         return False
 
-    message = (
-        'Aviso de llegada tarde\n'
-        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
-        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
-        f'Fecha: {fecha}\n'
-        f'Hora de llegada: {hora}'
-    )
     endpoint = f'https://api.telegram.org/bot{bot_token}/sendMessage'
     payload = urlencode({'chat_id': chat_id, 'text': message}).encode('utf-8')
     try:
@@ -67,6 +64,58 @@ def send_late_arrival_telegram(alumno, fecha: str, hora: str) -> bool:
         return True
     except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError):
         app.logger.exception('No se pudo enviar el aviso de llegada tarde por Telegram.')
+        return False
+
+
+def send_late_arrival_telegram(alumno, fecha: str, hora: str) -> bool:
+    """Envía un aviso opcional de llegada tarde."""
+    message = (
+        'Aviso de llegada tarde\n'
+        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
+        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
+        f'Fecha: {fecha}\n'
+        f'Hora de llegada: {hora}'
+    )
+    return send_telegram_message(message)
+
+
+def send_late_arrival_email(alumno, fecha: str, hora: str) -> bool:
+    """Envía un aviso opcional por email sin impedir el registro de asistencia."""
+    recipient = (alumno['email'] or '').strip()
+    smtp_host = os.environ.get('SMTP_HOST', '').strip()
+    smtp_username = os.environ.get('SMTP_USERNAME', '').strip()
+    smtp_password = os.environ.get('SMTP_PASSWORD', '')
+    sender = os.environ.get('SMTP_FROM_EMAIL', smtp_username).strip()
+    if not recipient or not smtp_host or not sender:
+        return False
+
+    message = EmailMessage()
+    message['Subject'] = 'Aviso de llegada tarde'
+    message['From'] = sender
+    message['To'] = recipient
+    message.set_content(
+        'Se registró una llegada tarde en el sistema de asistencia.\n\n'
+        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
+        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
+        f'Fecha: {fecha}\n'
+        f'Hora de llegada: {hora}\n'
+    )
+
+    try:
+        port = int(os.environ.get('SMTP_PORT', '587'))
+        if port == 465:
+            smtp = smtplib.SMTP_SSL(smtp_host, port, timeout=5)
+        else:
+            smtp = smtplib.SMTP(smtp_host, port, timeout=5)
+        with smtp:
+            if port != 465:
+                smtp.starttls()
+            if smtp_username and smtp_password:
+                smtp.login(smtp_username, smtp_password)
+            smtp.send_message(message)
+        return True
+    except (OSError, smtplib.SMTPException, ValueError):
+        app.logger.exception('No se pudo enviar el aviso de llegada tarde por email.')
         return False
 
 # Preserve existing backup files and their database history when moving to backup_db/.
@@ -535,6 +584,21 @@ def dashboard_directivo():
     conn.close()
     return render_template('dashboard_directivo.html', total_alumnos=total_alumnos,
                            total_preceptores=total_preceptores)
+
+
+@app.route('/directivo/telegram/test', methods=['POST'])
+@login_required
+@rol_requerido('directivo')
+def probar_telegram():
+    if not os.environ.get('TELEGRAM_BOT_TOKEN', '').strip():
+        flash('Falta configurar TELEGRAM_BOT_TOKEN.')
+    elif not os.environ.get('TELEGRAM_CHAT_ID', '').strip():
+        flash('Falta configurar TELEGRAM_CHAT_ID.')
+    elif send_telegram_message('Mensaje de prueba del sistema de asistencia.'):
+        flash('Mensaje de prueba enviado correctamente por Telegram.')
+    else:
+        flash('No se pudo enviar el mensaje de prueba por Telegram. Revisá el token, el chat y la conexión.')
+    return redirect(url_for('dashboard_directivo'))
 
 @app.route('/preceptor')
 @login_required
@@ -1072,7 +1136,7 @@ def marcar_entrada(alumno_id):
     fecha = ahora.date().isoformat()
     hora = ahora.strftime('%H:%M:%S')
     conn = get_db()
-    alumno = conn.execute("SELECT id, nombre, apellido, curso, turno, hora_entrada_oficial, rol, qr_token FROM usuarios WHERE id=?", (alumno_id,)).fetchone()
+    alumno = conn.execute("SELECT id, nombre, apellido, email, curso, turno, hora_entrada_oficial, rol, qr_token FROM usuarios WHERE id=?", (alumno_id,)).fetchone()
     if not alumno or alumno['rol'] != 'alumno':
         conn.close()
         flash('El QR no corresponde a un alumno.')
@@ -1089,6 +1153,7 @@ def marcar_entrada(alumno_id):
     conn.close()
     if estado == 'tardanza':
         send_late_arrival_telegram(alumno, fecha, hora)
+        send_late_arrival_email(alumno, fecha, hora)
     flash(f'Entrada registrada a las {hora}. Estado: {estado}.')
     panel = 'dashboard_entrada' if session.get('rol') == 'entrada' else 'dashboard_preceptor'
     return redirect(url_for(panel, scan=1))
@@ -1103,15 +1168,16 @@ def registrar_asistencia():
         flash('No tienes un curso asignado.')
         return redirect(url_for('dashboard'))
     conn = get_db()
-    alumnos = conn.execute("SELECT id, nombre, apellido, turno, profile_photo FROM usuarios WHERE rol='alumno' AND curso=? ORDER BY nombre",
+    alumnos = conn.execute("SELECT id, nombre, apellido, email, curso, turno, profile_photo FROM usuarios WHERE rol='alumno' AND curso=? ORDER BY nombre",
                            (curso,)).fetchall()
     if request.method == 'POST':
         fecha = request.form['fecha']
+        avisos_tardanza = []
         for alumno in alumnos:
             estado = request.form.get(f'estado_{alumno["id"]}')
             if estado:
                 # Actualizar o insertar
-                existente = conn.execute("SELECT id FROM asistencias WHERE alumno_id=? AND fecha=?",
+                existente = conn.execute("SELECT id, estado, hora FROM asistencias WHERE alumno_id=? AND fecha=?",
                                          (alumno['id'], fecha)).fetchone()
                 if existente:
                     conn.execute("UPDATE asistencias SET estado=? WHERE id=?",
@@ -1119,8 +1185,12 @@ def registrar_asistencia():
                 else:
                     conn.execute("INSERT INTO asistencias (alumno_id, fecha, estado) VALUES (?,?,?)",
                                  (alumno['id'], fecha, estado))
+                if estado == 'tardanza' and (not existente or existente['estado'] != 'tardanza'):
+                    avisos_tardanza.append((alumno, fecha, existente['hora'] if existente else 'No informada'))
         conn.commit()
         conn.close()
+        for alumno, fecha_aviso, hora_aviso in avisos_tardanza:
+            send_late_arrival_email(alumno, fecha_aviso, hora_aviso)
         flash('Asistencia registrada correctamente.')
         return redirect(url_for('ver_asistencia_curso'))
     conn.close()

@@ -27,7 +27,7 @@ La identificación para registrar llegadas se realiza mediante códigos QR o car
 
 ## Notificaciones
 
-La aplicación puede enviar un aviso automático por Telegram cuando un alumno llega tarde mediante QR. La notificación es opcional y no impide registrar la asistencia si Telegram no está disponible.
+La aplicación puede enviar avisos automáticos por email y Telegram cuando un alumno llega tarde mediante QR. También puede notificar por email cuando un preceptor marca manualmente una tardanza. Las notificaciones son opcionales y no impiden registrar la asistencia si el servicio externo no está disponible.
 
 ## Roles del sistema
 
@@ -58,12 +58,12 @@ Ejecuta los siguientes pasos desde la raíz del repositorio. La aplicación se e
 ### Windows (PowerShell)
 
 ```powershell
+Set-Location 'ProyectoGestion de asistencia'
 py -3.11 -m venv .venv
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
-Set-Location 'ProyectoGestion de asistencia'
 python app.py
 ```
 
@@ -105,6 +105,11 @@ La aplicación acepta estas variables de entorno:
 | `FLASK_SSL_KEY` | — | Ruta a la clave privada asociada al certificado TLS. |
 | `TELEGRAM_BOT_TOKEN` | — | Token del bot que enviará avisos de llegadas tarde. |
 | `TELEGRAM_CHAT_ID` | — | Chat o grupo de Telegram que recibirá los avisos. |
+| `SMTP_HOST` | — | Servidor SMTP para enviar avisos por email. |
+| `SMTP_PORT` | `587` | Puerto SMTP. El puerto `465` usa SSL directo; otros puertos usan STARTTLS. |
+| `SMTP_USERNAME` | — | Usuario de autenticación SMTP. |
+| `SMTP_PASSWORD` | — | Contraseña o clave de aplicación SMTP. |
+| `SMTP_FROM_EMAIL` | `SMTP_USERNAME` | Dirección que aparecerá como remitente. |
 
 Para permitir el acceso desde un teléfono, ambos dispositivos deben estar en una red de confianza. Configura un certificado confiable para la IP o el nombre de host del servidor. Consulta [HTTPS_MOVIL.md](HTTPS_MOVIL.md) para las instrucciones de Windows y `mkcert`.
 
@@ -115,6 +120,19 @@ $env:TELEGRAM_BOT_TOKEN = 'token-del-bot'
 $env:TELEGRAM_CHAT_ID = 'id-del-chat'
 python app.py
 ```
+
+Para activar los avisos por email, configura el servidor SMTP y el correo de cada alumno en su usuario. Ejemplo con STARTTLS:
+
+```powershell
+$env:SMTP_HOST = 'smtp.example.com'
+$env:SMTP_PORT = '587'
+$env:SMTP_USERNAME = 'avisos@example.com'
+$env:SMTP_PASSWORD = 'clave-de-aplicacion'
+$env:SMTP_FROM_EMAIL = 'avisos@example.com'
+python app.py
+```
+
+Usa una clave de aplicación cuando el proveedor de correo tenga autenticación en dos pasos y no guardes estas variables en el repositorio.
 
 ## Pruebas
 

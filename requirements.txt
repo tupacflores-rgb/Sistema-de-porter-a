@@ -2,3 +2,4 @@ Flask
 qrcode[pil]
 cryptography
 openpyxl
+python-dotenv
