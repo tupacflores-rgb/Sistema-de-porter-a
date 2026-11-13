@@ -1,10 +1,12 @@
 {% extends "base.html" %}
+{% from "_macros.html" import estado, volver %}
 {% block content %}
-<h2>Reporte de asistencia por curso</h2>
+{{ volver(url_for("dashboard")) }}
+<h2>Asistencia por curso</h2>
 <form method="get" class="row g-2 mb-3">
   <div class="col-auto">
     <select name="curso" class="form-select">
-      <option value="">-- Seleccionar curso --</option>
+      <option value="">Elegí un curso</option>
       {% for c in cursos %}
         <option value="{{ c }}" {{ 'selected' if c==curso_sel else '' }}>{{ c }}</option>
       {% endfor %}
@@ -14,7 +16,7 @@
     <input type="date" name="fecha" class="form-control" value="{{ fecha }}">
   </div>
   <div class="col-auto">
-    <button type="submit" class="btn btn-outline-primary">Consultar</button>
+    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Ver asistencia</button>
   </div>
 </form>
 {% if curso_sel %}
@@ -26,7 +28,7 @@
       {% for al in alumnos %}
       <tr>
         <td>{{ al.nombre }}</td>
-        <td><span class="badge bg-{{ 'success' if registros[al.id]=='presente' else 'danger' if registros[al.id]=='ausente' else 'warning' if registros[al.id]=='tardanza' else 'secondary' }}">{{ registros[al.id] }}</span></td>
+        <td>{{ estado(registros[al.id]) }}</td>
       </tr>
       {% endfor %}
     </tbody>

@@ -552,7 +552,7 @@ def login():
             session['rol'] = user['rol']
             session['curso'] = user['curso']  # puede ser None
             return redirect(url_for('dashboard'))
-        flash('Correo o contraseña incorrectos.')
+        flash('Correo o contraseña incorrectos. Revisá los datos e intentá de nuevo.', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -604,7 +604,8 @@ def probar_telegram():
 @login_required
 @rol_requerido('preceptor')
 def dashboard_preceptor():
-    return render_template('dashboard_preceptor.html', curso=session.get('curso'))
+    return render_template('dashboard_preceptor.html', curso=session.get('curso'),
+                           resultado=resultado_ultimo_ingreso())
 
 @app.route('/alumno')
 @login_required
@@ -616,7 +617,34 @@ def dashboard_alumno():
 @login_required
 @rol_requerido('entrada')
 def dashboard_entrada():
-    return render_template('dashboard_entrada.html')
+    hoy = date.today().isoformat()
+    conn = get_db()
+    resumen = conn.execute(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(estado='tardanza'), 0) AS tarde FROM asistencias WHERE fecha=? AND estado IN ('presente', 'tardanza')",
+        (hoy,)
+    ).fetchone()
+    recientes = conn.execute(
+        "SELECT u.nombre, u.apellido, u.curso, a.hora, a.estado FROM asistencias a "
+        "JOIN usuarios u ON u.id = a.alumno_id WHERE a.fecha=? AND a.hora IS NOT NULL "
+        "ORDER BY a.id DESC LIMIT 5",
+        (hoy,)
+    ).fetchall()
+    conn.close()
+    return render_template('dashboard_entrada.html', resultado=resultado_ultimo_ingreso(),
+                           ingresos_hoy=resumen['total'], tardes_hoy=resumen['tarde'],
+                           recientes=recientes)
+
+
+def resultado_ultimo_ingreso():
+    """Devuelve (y descarta) el aviso del último ingreso registrado, para mostrarlo en el escáner."""
+    ingreso = session.pop('ultimo_ingreso', None)
+    if not ingreso:
+        return None
+    if ingreso['tarde']:
+        return {'tipo': 'warning', 'titulo': ingreso['nombre'],
+                'detalle': f"Llegó tarde · {ingreso['hora']} hs. Ya quedó registrado."}
+    return {'tipo': 'success', 'titulo': ingreso['nombre'],
+            'detalle': f"Entrada registrada · {ingreso['hora']} hs"}
 
 # --- Gestión de usuarios (solo directivo) ---
 @app.route('/usuarios')
@@ -1154,8 +1182,12 @@ def marcar_entrada(alumno_id):
     if estado == 'tardanza':
         send_late_arrival_telegram(alumno, fecha, hora)
         send_late_arrival_email(alumno, fecha, hora)
-    flash(f'Entrada registrada a las {hora}. Estado: {estado}.')
-    panel = 'dashboard_entrada' if session.get('rol') == 'entrada' else 'dashboard_preceptor'
+    session['ultimo_ingreso'] = {
+        'nombre': f"{alumno['nombre']} {alumno['apellido']}".strip(),
+        'hora': hora[:5],
+        'tarde': estado == 'tardanza',
+    }
+    panel ='dashboard_entrada' if session.get('rol') == 'entrada' else 'dashboard_preceptor'
     return redirect(url_for(panel, scan=1))
 
 # --- Asistencia (preceptor) ---

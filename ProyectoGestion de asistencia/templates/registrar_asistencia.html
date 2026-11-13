@@ -1,31 +1,77 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Registrar Asistencia</h2>
-<form method="post">
-  <div class="mb-3">
-    <label>Fecha</label>
-    <input type="date" name="fecha" class="form-control" value="{{ hoy }}" required>
+<div class="dashboard-head">
+  <div>
+    <div class="login-kicker">Preceptoría</div>
+    <h2>Tomar lista</h2>
+    <p>Tocá una opción junto a cada nombre. Si ya vinieron casi todos, usá “Todos presentes” y corregí solo los que faltan.</p>
   </div>
-  <div class="table-responsive">
-  <table class="table">
-    <thead><tr><th>Alumno</th><th>Estado</th></tr></thead>
-    <tbody>
-      {% for al in alumnos %}
-      <tr>
-        <td>{{ al.nombre }}</td>
-        <td>
-          <select name="estado_{{ al.id }}" class="form-select">
-            <option value="">-- Sin registro --</option>
-            <option value="presente">Presente</option>
-            <option value="ausente">Ausente</option>
-            <option value="tardanza">Tardanza</option>
-          </select>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+</div>
+
+<form method="post" id="attendanceForm">
+  <div class="roll-toolbar">
+    <div class="roll-date">
+      <label for="fecha">Fecha</label>
+      <input type="date" id="fecha" name="fecha" class="form-control" value="{{ hoy }}" required>
+    </div>
+    <div class="roll-quick">
+      <button type="button" class="btn btn-outline-primary" id="markAllPresent"><i class="fa-solid fa-check-double" aria-hidden="true"></i> Todos presentes</button>
+      <button type="button" class="btn btn-outline-secondary" id="clearAll"><i class="fa-solid fa-eraser" aria-hidden="true"></i> Borrar marcas</button>
+    </div>
   </div>
-  <button type="submit" class="btn btn-primary">Guardar asistencia</button>
+
+  <ul class="roll-list">
+    {% for al in alumnos %}
+    <li class="roll-row">
+      <div class="roll-student">
+        {% if al.profile_photo %}
+        <img src="{{ url_for('static', filename='uploads/' ~ al.profile_photo) }}" alt="" class="roll-avatar">
+        {% else %}
+        <span class="roll-avatar roll-avatar-empty" aria-hidden="true">{{ (al.nombre or '?')[0] }}</span>
+        {% endif %}
+        <span class="roll-name">{{ al.nombre }} {{ al.apellido }}</span>
+      </div>
+      <div class="status-choice" role="radiogroup" aria-label="Asistencia de {{ al.nombre }} {{ al.apellido }}">
+        <input type="radio" class="btn-check" name="estado_{{ al.id }}" id="p{{ al.id }}" value="presente">
+        <label class="status-btn status-present" for="p{{ al.id }}"><i class="fa-solid fa-check" aria-hidden="true"></i> Presente</label>
+        <input type="radio" class="btn-check" name="estado_{{ al.id }}" id="t{{ al.id }}" value="tardanza">
+        <label class="status-btn status-late" for="t{{ al.id }}"><i class="fa-solid fa-clock" aria-hidden="true"></i> Tarde</label>
+        <input type="radio" class="btn-check" name="estado_{{ al.id }}" id="a{{ al.id }}" value="ausente">
+        <label class="status-btn status-absent" for="a{{ al.id }}"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Ausente</label>
+      </div>
+    </li>
+    {% else %}
+    <li class="recent-empty">No hay alumnos cargados en este curso.</li>
+    {% endfor %}
+  </ul>
+
+  <div class="save-bar">
+    <span class="save-count" id="markedCount" role="status" aria-live="polite">0 marcados</span>
+    <button type="submit" class="btn btn-success btn-lg"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar lista</button>
+  </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const form = document.getElementById('attendanceForm');
+  const counter = document.getElementById('markedCount');
+  const total = form.querySelectorAll('.roll-row').length;
+  const update = () => {
+    const marked = form.querySelectorAll('input[type=radio]:checked').length;
+    counter.textContent = marked + ' de ' + total + ' marcados';
+  };
+  form.addEventListener('change', update);
+  document.getElementById('markAllPresent').addEventListener('click', () => {
+    form.querySelectorAll('input[value=presente]').forEach(r => { r.checked = true; });
+    update();
+  });
+  document.getElementById('clearAll').addEventListener('click', () => {
+    form.querySelectorAll('input[type=radio]').forEach(r => { r.checked = false; });
+    update();
+  });
+  update();
+})();
+</script>
 {% endblock %}

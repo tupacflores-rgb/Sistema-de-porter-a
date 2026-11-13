@@ -3,57 +3,69 @@
 {% block content %}
 <section class="qr-profile" aria-labelledby="qr-profile-title">
 {% if asistencia_hoy %}
-<h2 id="qr-profile-title">Ingreso ya registrado</h2>
-<p class="qr-result-message"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Este alumno ya registró su ingreso hoy a las {{ asistencia_hoy.hora or 'hora no disponible' }}. No es necesario volver a marcarlo.</p>
+<div class="verdict verdict-warning" role="status">
+  <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+  <div>
+    <h2 id="qr-profile-title">Ya registró su ingreso</h2>
+    <p>Entró hoy a las {{ asistencia_hoy.hora[:5] if asistencia_hoy.hora else 'una hora no registrada' }}. No hace falta marcarlo de nuevo.</p>
+  </div>
+</div>
 {% else %}
-<h2 id="qr-profile-title">Usuario identificado</h2>
-<p class="text-success fw-bold"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> QR validado correctamente</p>
+<div class="verdict verdict-ok" role="status">
+  <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+  <div>
+    <h2 id="qr-profile-title">Código válido</h2>
+    <p>Verificá que la persona coincida con la foto.</p>
+  </div>
+</div>
 {% endif %}
 <div class="card qr-profile-card mb-3">
   <div class="card-body qr-profile-body">
     {% if usuario.profile_photo %}
     <img src="{{ url_for('static', filename='uploads/' ~ usuario.profile_photo) }}" alt="Foto de perfil de {{ usuario.nombre }} {{ usuario.apellido }}" class="qr-profile-photo">
     {% elif session.rol == 'entrada' and usuario.rol == 'alumno' %}
-    <div class="alert alert-warning w-100">Este alumno todavía no tiene una foto de perfil.</div>
+    <div class="no-photo" aria-hidden="true"><i class="fa-solid fa-user"></i></div>
     {% endif %}
-    <h5 class="card-title">{{ usuario.nombre }} {{ usuario.apellido }}</h5>
-    <div class="qr-profile-details">
-      <p class="card-text"><strong>Rol</strong><span>{{ usuario.rol }}</span></p>
-      {% if usuario.curso %}<p class="card-text"><strong>Curso</strong><span>{{ usuario.curso }}</span></p>{% endif %}
-      {% if usuario.turno %}<p class="card-text"><strong>Turno</strong><span>{{ usuario.turno }}</span></p>{% endif %}
-      {% if usuario.capacitacion %}<p class="card-text"><strong>Capacitación</strong><span>{{ usuario.capacitacion }}</span></p>{% endif %}
+    <p class="person-name">{{ usuario.nombre }} {{ usuario.apellido }}</p>
+    <div class="person-tags">
+      {% if usuario.curso %}<span class="person-tag"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i> {{ usuario.curso }}</span>{% endif %}
+      {% if usuario.turno %}<span class="person-tag"><i class="fa-regular fa-clock" aria-hidden="true"></i> Turno {{ usuario.turno }}</span>{% endif %}
+      {% if usuario.capacitacion %}<span class="person-tag"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> {{ usuario.capacitacion }}</span>{% endif %}
+      {% if usuario.rol != 'alumno' %}<span class="person-tag">{{ usuario.rol|capitalize }}</span>{% endif %}
     </div>
   </div>
 </div>
 {% if session.rol == 'entrada' and usuario.rol == 'alumno' and not usuario.profile_photo and not asistencia_hoy %}
-<section class="card mb-3 text-start" aria-labelledby="studentPhotoTitle">
+<section class="card mb-3 text-start photo-card" aria-labelledby="studentPhotoTitle">
   <div class="card-body">
-    <h3 class="h5" id="studentPhotoTitle">Registrar foto del alumno</h3>
-    <p class="text-muted">Tomá una fotografía para agregarla a su perfil.</p>
+    <h3 class="h5" id="studentPhotoTitle"><i class="fa-solid fa-camera" aria-hidden="true"></i> Este alumno no tiene foto</h3>
+    <p class="text-muted">Sacale una ahora para que quede en su perfil. Podés saltear este paso y marcar la entrada igual.</p>
     <div id="photoStatus" class="small mb-2" role="status" aria-live="polite"></div>
     <video id="studentCamera" class="w-100 rounded bg-dark mb-2" autoplay playsinline hidden></video>
     <canvas id="studentPhotoCanvas" hidden></canvas>
     <img id="studentPhotoPreview" class="img-fluid rounded mb-2" alt="Vista previa de la foto del alumno" hidden>
     <div class="d-flex flex-wrap gap-2">
-      <button type="button" id="startStudentCamera" class="btn btn-outline-primary"><i class="fa-solid fa-camera"></i> Abrir cámara</button>
-      <button type="button" id="captureStudentPhoto" class="btn btn-primary" hidden>Tomar foto</button>
+      <button type="button" id="startStudentCamera" class="btn btn-outline-primary"><i class="fa-solid fa-camera" aria-hidden="true"></i> Sacar foto</button>
+      <button type="button" id="captureStudentPhoto" class="btn btn-primary" hidden><i class="fa-solid fa-circle-dot" aria-hidden="true"></i> Capturar</button>
       <button type="button" id="retakeStudentPhoto" class="btn btn-outline-secondary" hidden>Repetir</button>
-      <button type="button" id="saveStudentPhoto" class="btn btn-success" hidden>Guardar foto</button>
+      <button type="button" id="saveStudentPhoto" class="btn btn-success" hidden><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar foto</button>
     </div>
   </div>
 </section>
 {% endif %}
+<div class="action-bar">
 {% if session.rol in ('entrada', 'preceptor') and usuario.rol == 'alumno' and not asistencia_hoy %}
 <form method="post" action="{{ url_for('marcar_entrada', alumno_id=usuario.id) }}" class="qr-entry-form">
-  <button type="submit" class="btn btn-success qr-entry-button"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> {{ 'Marcar entrada' if session.rol == 'entrada' else 'Registrar asistencia' }}</button>
+  <button type="submit" class="btn btn-success qr-entry-button" autofocus><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i> {{ 'Marcar entrada' if session.rol == 'entrada' else 'Registrar asistencia' }}</button>
 </form>
 {% endif %}
 {% if asistencia_hoy and session.rol in ('entrada', 'preceptor') %}
-<a href="{{ url_for('dashboard_entrada' if session.rol == 'entrada' else 'dashboard_preceptor', scan=1) }}" class="btn btn-primary qr-back-button mb-2"><i class="fa-solid fa-check" aria-hidden="true"></i> Aceptar</a>
+<a href="{{ url_for('dashboard_entrada' if session.rol == 'entrada' else 'dashboard_preceptor', scan=1) }}" class="btn btn-primary qr-entry-button" autofocus><i class="fa-solid fa-qrcode" aria-hidden="true"></i> Seguir escaneando</a>
 {% endif %}
 {% if not asistencia_hoy %}
-<a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary qr-back-button">Volver al panel</a>
+<a href="{{ url_for('dashboard_entrada', scan=1) if session.rol == 'entrada' else url_for('dashboard') }}" class="btn btn-outline-secondary qr-back-button"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Cancelar</a>
 {% endif %}
+</div>
 </section>
 {% endblock %}
 

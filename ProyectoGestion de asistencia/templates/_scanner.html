@@ -1,0 +1,36 @@
+{# Escáner de QR a pantalla completa, compartido por portería y preceptor.
+   Variables: scanner_title (texto de la barra), resultado (dict opcional: mensaje, tipo) #}
+<div class="modal fade" id="scannerModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false"
+     data-validate-url="{{ url_for('validate_qr') }}" data-auto-open="{{ 'true' if auto_open else 'false' }}">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content scanner-modal-content">
+      <div class="scanner-stage" id="scannerStage">
+        <video id="video" class="scanner-video" autoplay playsinline muted></video>
+        <canvas id="canvas" hidden></canvas>
+        <header class="scanner-topbar">
+          <span class="scanner-brand"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> {{ scanner_title }}</span>
+          <button type="button" class="scanner-close" id="btnStop"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Cerrar</button>
+        </header>
+        {% if resultado %}
+        <div class="scanner-result scanner-result-{{ resultado.tipo }}" id="scannerResult" role="status" aria-live="assertive">
+          <i class="fa-solid {{ 'fa-circle-check' if resultado.tipo == 'success' else 'fa-triangle-exclamation' }}" aria-hidden="true"></i>
+          <div>
+            <strong>{{ resultado.titulo }}</strong>
+            <span>{{ resultado.detalle }}</span>
+          </div>
+        </div>
+        {% endif %}
+        <div class="scanner-guide">
+          <div class="scanner-frame" aria-hidden="true">
+            <span class="scanner-corner scanner-corner-tl"></span><span class="scanner-corner scanner-corner-tr"></span>
+            <span class="scanner-corner scanner-corner-bl"></span><span class="scanner-corner scanner-corner-br"></span>
+            <span class="scanner-line"></span>
+          </div>
+          <p id="scanStatus" class="scanner-status" role="status" aria-live="polite">Iniciando cámara…</p>
+          <p class="scanner-hint">Acercá el código QR del alumno al cuadro. Se lee solo.</p>
+          <button type="button" class="btn scanner-retry" id="scannerRetry" hidden><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Volver a intentar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

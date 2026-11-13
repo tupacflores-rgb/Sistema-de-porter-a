@@ -1,13 +1,15 @@
 {% extends "base.html" %}
+{% from "_macros.html" import estado, volver %}
 {% block content %}
 {% if es_preceptor %}
-  <h2>Asistencia del curso - {{ fecha }}</h2>
+  {{ volver(url_for("dashboard")) }}
+  <h2>Asistencia del curso</h2>
   <form method="get" class="row g-2 mb-3">
     <div class="col-auto">
       <input type="date" name="fecha" class="form-control" value="{{ fecha }}">
     </div>
     <div class="col-auto">
-      <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+      <button type="submit" class="btn btn-outline-primary"><i class="fa-solid fa-calendar-day" aria-hidden="true"></i> Ver este día</button>
     </div>
   </form>
   <div class="table-responsive">
@@ -19,7 +21,7 @@
         <td>{% if al.profile_photo %}<img src="{{ url_for('static', filename='uploads/' ~ al.profile_photo) }}" alt="Foto" class="img-thumbnail" style="max-width: 50px;">{% else %}-{% endif %}</td>
         <td>{{ al.nombre }} {{ al.apellido }}</td>
         <td>{{ al.turno or '-' }}</td>
-        <td><span class="badge bg-{{ 'success' if registros[al.id].estado=='presente' else 'danger' if registros[al.id].estado=='ausente' else 'warning' if registros[al.id].estado=='tardanza' else 'secondary' }}">{{ registros[al.id].estado }}</span></td>
+        <td>{{ estado(registros[al.id].estado) }}</td>
         <td>{{ registros[al.id].hora or '-' }}</td>
       </tr>
       {% endfor %}
@@ -27,20 +29,21 @@
   </table>
   </div>
 {% elif es_alumno %}
-  <h2>Mi Asistencia</h2>
+  {{ volver(url_for("dashboard")) }}
+  <h2>Mi asistencia</h2>
   <form method="get" class="row g-2 mb-3">
     <div class="col-auto">
       <input type="month" name="mes" class="form-control" value="{{ mes }}">
     </div>
     <div class="col-auto">
-      <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+      <button type="submit" class="btn btn-outline-primary"><i class="fa-solid fa-calendar" aria-hidden="true"></i> Ver este mes</button>
     </div>
   </form>
-  <div class="mb-3">
-    <span class="badge bg-success">Presentes: {{ presentes }}</span>
-    <span class="badge bg-danger">Ausentes: {{ ausentes }}</span>
-    <span class="badge bg-warning">Tardanzas: {{ tardanzas }}</span>
-    <span class="badge bg-secondary">Total: {{ total }}</span>
+  <div class="summary-row">
+    <div class="summary-box estado-success"><strong>{{ presentes }}</strong> Presentes</div>
+    <div class="summary-box estado-danger"><strong>{{ ausentes }}</strong> Ausentes</div>
+    <div class="summary-box estado-warning"><strong>{{ tardanzas }}</strong> Tarde</div>
+    <div class="summary-box estado-secondary"><strong>{{ total }}</strong> Total</div>
   </div>
   <div class="table-responsive">
   <table class="table table-striped">
@@ -49,7 +52,7 @@
       {% for r in registros %}
       <tr>
         <td>{{ r.fecha }}</td>
-        <td><span class="badge bg-{{ 'success' if r.estado=='presente' else 'danger' if r.estado=='ausente' else 'warning' }}">{{ r.estado }}</span></td>
+        <td>{{ estado(r.estado) }}</td>
       </tr>
       {% else %}
       <tr><td colspan="2">Sin registros para este mes.</td></tr>

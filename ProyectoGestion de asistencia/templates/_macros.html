@@ -1,0 +1,10 @@
+{# Etiqueta de estado de asistencia, con ícono y texto en castellano. #}
+{% macro estado(valor) %}
+{% set m = {'presente': ('success', 'fa-check', 'Presente'), 'ausente': ('danger', 'fa-xmark', 'Ausente'), 'tardanza': ('warning', 'fa-clock', 'Tarde')} %}
+{% set e = m.get(valor, ('secondary', 'fa-minus', 'Sin registro')) %}
+<span class="estado estado-{{ e[0] }}"><i class="fa-solid {{ e[1] }}" aria-hidden="true"></i> {{ e[2] }}</span>
+{% endmacro %}
+
+{% macro volver(url, texto='Volver') %}
+<a href="{{ url }}" class="btn btn-outline-secondary mb-3"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> {{ texto }}</a>
+{% endmacro %}

@@ -4,11 +4,11 @@
   <div>
     <div class="login-kicker">Administración</div>
     <h2>Panel de Dirección</h2>
-    <p>Una vista clara de la operación diaria del colegio.</p>
+    <p>Elegí lo que necesitás hacer.</p>
   </div>
 </div>
-<div class="row mt-4">
-  <div class="col-md-4">
+<div class="row mb-4">
+  <div class="col-sm-6 col-md-4">
     <div class="card stat-card stat-blue mb-3">
       <div class="card-body">
         <div class="stat-label">Alumnos</div>
@@ -16,7 +16,7 @@
       </div>
     </div>
   </div>
-  <div class="col-md-4">
+  <div class="col-sm-6 col-md-4">
     <div class="card stat-card stat-coral mb-3">
       <div class="card-body">
         <div class="stat-label">Preceptores</div>
@@ -25,13 +25,33 @@
     </div>
   </div>
 </div>
-<div class="list-group">
-  <a href="{{ url_for('gestion_usuarios') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-users"></i> Gestionar usuarios</a>
-  <a href="{{ url_for('reporte_asistencia') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-chart-column"></i> Ver asistencia por curso</a>
-  <a href="{{ url_for('carga_masiva') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-file-import"></i> Carga masiva de datos</a>
-  <a href="{{ url_for('gestion_backups') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-hard-drive"></i> Backups de la base de datos</a>
-  <form method="post" action="{{ url_for('probar_telegram') }}" class="list-group-item p-0">
-    <button type="submit" class="btn btn-link list-group-item-action text-start w-100"><i class="fa-brands fa-telegram"></i> Probar notificaciones de Telegram</button>
+<div class="tile-grid">
+  <a href="{{ url_for('gestion_usuarios') }}" class="action-tile tile-primary">
+    <span class="tile-icon"><i class="fa-solid fa-users" aria-hidden="true"></i></span>
+    <span class="tile-title">Usuarios</span>
+    <span class="tile-text">Agregar, buscar, editar o dar de baja personas.</span>
+  </a>
+  <a href="{{ url_for('reporte_asistencia') }}" class="action-tile">
+    <span class="tile-icon"><i class="fa-solid fa-chart-column" aria-hidden="true"></i></span>
+    <span class="tile-title">Asistencia por curso</span>
+    <span class="tile-text">Ver cómo viene cada curso.</span>
+  </a>
+  <a href="{{ url_for('carga_masiva') }}" class="action-tile">
+    <span class="tile-icon"><i class="fa-solid fa-file-import" aria-hidden="true"></i></span>
+    <span class="tile-title">Cargar alumnos desde Excel</span>
+    <span class="tile-text">Subir una planilla con muchos alumnos a la vez.</span>
+  </a>
+  <a href="{{ url_for('gestion_backups') }}" class="action-tile">
+    <span class="tile-icon"><i class="fa-solid fa-hard-drive" aria-hidden="true"></i></span>
+    <span class="tile-title">Copias de seguridad</span>
+    <span class="tile-text">Guardar o recuperar los datos del sistema.</span>
+  </a>
+  <form method="post" action="{{ url_for('probar_telegram') }}" class="tile-form">
+    <button type="submit" class="action-tile">
+      <span class="tile-icon"><i class="fa-brands fa-telegram" aria-hidden="true"></i></span>
+      <span class="tile-title">Probar avisos de Telegram</span>
+      <span class="tile-text">Enviar un mensaje de prueba para ver si llega.</span>
+    </button>
   </form>
 </div>
 {% endblock %}
