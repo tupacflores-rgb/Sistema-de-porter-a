@@ -113,7 +113,9 @@ La aplicación acepta estas variables de entorno:
 
 Para permitir el acceso desde un teléfono, ambos dispositivos deben estar en una red de confianza. Configura un certificado confiable para la IP o el nombre de host del servidor. Consulta [HTTPS_MOVIL.md](HTTPS_MOVIL.md) para las instrucciones de Windows y `mkcert`.
 
-Para activar Telegram, crea un bot con `@BotFather`, inicia una conversación con él o agrégalo al grupo destinatario, obtiene el `chat_id` correspondiente y configura ambas variables antes de iniciar Flask:
+Los datos de Telegram y de correo también se pueden cargar desde la aplicación, sin tocar variables de entorno: en el panel de Dirección, **Funciones experimentales**. Ahí mismo hay botones para enviar un mensaje y un correo de prueba. Lo cargado en el panel tiene prioridad sobre las variables de entorno. Se guarda en la base de datos (tabla `configuracion`), por lo que también queda dentro de las copias de seguridad; el token y la contraseña nunca se vuelven a mostrar en pantalla.
+
+Para activar Telegram con variables de entorno, crea un bot con `@BotFather`, inicia una conversación con él o agrégalo al grupo destinatario, obtiene el `chat_id` correspondiente y configura ambas variables antes de iniciar Flask:
 
 ```powershell
 $env:TELEGRAM_BOT_TOKEN = 'token-del-bot'

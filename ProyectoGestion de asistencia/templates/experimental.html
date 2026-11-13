@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% from "_macros.html" import volver %}
+
+{% block content %}
+{{ volver(url_for("dashboard_directivo")) }}
+<div class="dashboard-head">
+  <div>
+    <div class="login-kicker">Dirección</div>
+    <h2>Funciones experimentales</h2>
+    <p>Acá cargás los datos para que el sistema avise las llegadas tarde por Telegram y por correo. Son funciones opcionales: si no las configurás, el resto del sistema funciona igual.</p>
+  </div>
+</div>
+
+{# ---------------- Telegram ---------------- #}
+<section class="card config-card mb-4" id="telegram" aria-labelledby="tg-titulo">
+  <div class="card-body">
+    <div class="config-head">
+      <h3 id="tg-titulo"><i class="fa-brands fa-telegram" aria-hidden="true"></i> Avisos por Telegram</h3>
+      {% if config.TELEGRAM_BOT_TOKEN[0] and config.TELEGRAM_CHAT_ID[0] %}
+      <span class="estado estado-success"><i class="fa-solid fa-check" aria-hidden="true"></i> Configurado</span>
+      {% else %}
+      <span class="estado estado-secondary"><i class="fa-solid fa-minus" aria-hidden="true"></i> Sin configurar</span>
+      {% endif %}
+    </div>
+    <details class="config-help">
+      <summary>¿De dónde saco estos datos?</summary>
+      <ol>
+        <li>En Telegram buscá <strong>@BotFather</strong>, escribile <code>/newbot</code> y seguí los pasos. Al final te da el <strong>token</strong>.</li>
+        <li>Creá un grupo (o usá uno existente) y agregá a tu bot.</li>
+        <li>Para saber el <strong>ID del chat</strong>, escribí un mensaje en el grupo y abrí <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code>. Buscá el número que aparece en <code>"chat":{"id": ...}</code>.</li>
+      </ol>
+    </details>
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="accion" value="guardar_telegram">
+      <div class="form-grid">
+        <div class="field field-wide">
+          <label for="TELEGRAM_BOT_TOKEN">Token del bot</label>
+          <input type="password" id="TELEGRAM_BOT_TOKEN" name="TELEGRAM_BOT_TOKEN" class="form-control"
+                 autocomplete="new-password" placeholder="{{ 'Ya hay uno guardado. Dejalo vacío para no cambiarlo.' if config.TELEGRAM_BOT_TOKEN[0] else 'Pegá acá el token' }}">
+          {% if config.TELEGRAM_BOT_TOKEN[0] == 'entorno' %}<span class="form-hint">Hoy se usa el token de las variables de entorno del servidor.</span>{% endif %}
+        </div>
+        <div class="field field-wide">
+          <label for="TELEGRAM_CHAT_ID">ID del chat</label>
+          <input type="text" id="TELEGRAM_CHAT_ID" name="TELEGRAM_CHAT_ID" class="form-control" inputmode="numeric"
+                 value="{{ config.TELEGRAM_CHAT_ID[1] }}" placeholder="Por ejemplo: -1001234567890">
+        </div>
+      </div>
+      <div class="config-actions">
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar datos</button>
+      </div>
+    </form>
+    <form method="post" class="config-test">
+      <input type="hidden" name="accion" value="probar_telegram">
+      <button type="submit" class="btn btn-outline-primary"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Enviar mensaje de prueba</button>
+      <span class="form-hint">Guardá los datos primero. La prueba usa lo que está guardado.</span>
+    </form>
+  </div>
+</section>
+
+{# ---------------- Correo ---------------- #}
+<section class="card config-card mb-4" id="correo" aria-labelledby="mail-titulo">
+  <div class="card-body">
+    <div class="config-head">
+      <h3 id="mail-titulo"><i class="fa-solid fa-envelope" aria-hidden="true"></i> Avisos por correo</h3>
+      {% if config.SMTP_HOST[0] and (config.SMTP_FROM_EMAIL[0] or config.SMTP_USERNAME[0]) %}
+      <span class="estado estado-success"><i class="fa-solid fa-check" aria-hidden="true"></i> Configurado</span>
+      {% else %}
+      <span class="estado estado-secondary"><i class="fa-solid fa-minus" aria-hidden="true"></i> Sin configurar</span>
+      {% endif %}
+    </div>
+    <p class="text-muted">Los avisos se envían al correo que cada alumno tiene cargado en su usuario.</p>
+    <details class="config-help">
+      <summary>¿Qué datos pongo?</summary>
+      <p>Son los datos de tu proveedor de correo. Por ejemplo, para Gmail: servidor <code>smtp.gmail.com</code>, puerto <code>587</code>, tu dirección como usuario y una <strong>clave de aplicación</strong> (no tu contraseña normal) como contraseña.</p>
+    </details>
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="accion" value="guardar_correo">
+      <div class="form-grid">
+        <div class="field">
+          <label for="SMTP_HOST">Servidor de correo</label>
+          <input type="text" id="SMTP_HOST" name="SMTP_HOST" class="form-control" value="{{ config.SMTP_HOST[1] }}" placeholder="smtp.gmail.com" autocapitalize="none">
+        </div>
+        <div class="field">
+          <label for="SMTP_PORT">Puerto</label>
+          <input type="text" id="SMTP_PORT" name="SMTP_PORT" class="form-control" inputmode="numeric" value="{{ config.SMTP_PORT[1] }}" placeholder="587">
+        </div>
+        <div class="field">
+          <label for="SMTP_USERNAME">Usuario</label>
+          <input type="text" id="SMTP_USERNAME" name="SMTP_USERNAME" class="form-control" value="{{ config.SMTP_USERNAME[1] }}" placeholder="avisos@tucolegio.com" autocapitalize="none" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="SMTP_PASSWORD">Contraseña o clave de aplicación</label>
+          <input type="password" id="SMTP_PASSWORD" name="SMTP_PASSWORD" class="form-control" autocomplete="new-password"
+                 placeholder="{{ 'Ya hay una guardada. Dejala vacía para no cambiarla.' if config.SMTP_PASSWORD[0] else 'Pegá acá la clave' }}">
+        </div>
+        <div class="field field-wide">
+          <label for="SMTP_FROM_EMAIL">Correo que aparece como remitente</label>
+          <input type="email" id="SMTP_FROM_EMAIL" name="SMTP_FROM_EMAIL" class="form-control" value="{{ config.SMTP_FROM_EMAIL[1] }}" placeholder="Si lo dejás vacío se usa el usuario">
+        </div>
+      </div>
+      <div class="config-actions">
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar datos</button>
+      </div>
+    </form>
+    <form method="post" class="config-test">
+      <input type="hidden" name="accion" value="probar_correo">
+      <label for="destino">Enviar un correo de prueba a</label>
+      <div class="config-test-row">
+        <input type="email" id="destino" name="destino" class="form-control" value="{{ mi_email }}" required autocapitalize="none">
+        <button type="submit" class="btn btn-outline-primary"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Enviar prueba</button>
+      </div>
+      <span class="form-hint">Guardá los datos primero. La prueba usa lo que está guardado.</span>
+    </form>
+  </div>
+</section>
+
+<p class="form-hint"><i class="fa-solid fa-lock" aria-hidden="true"></i> Las claves no se vuelven a mostrar una vez guardadas. Se guardan en la base de datos, así que también quedan dentro de las copias de seguridad: guardalas en un lugar seguro.</p>
+{% endblock %}

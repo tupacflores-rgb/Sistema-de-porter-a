@@ -124,5 +124,17 @@
 .summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .75rem; margin-bottom: 1.25rem; }
 .summary-box { padding: .8rem 1rem; border-radius: 14px; font-weight: 600; }
 .summary-box strong { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 2rem; line-height: 1.1; }
+.config-card .card-body { padding: clamp(1.1rem, 4vw, 1.75rem); }
+.config-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+.config-head h3 { margin: 0; font-size: 1.35rem; }
+.config-head h3 i { margin-right: .4rem; color: var(--teal); }
+.config-help { margin-bottom: 1rem; padding: .75rem 1rem; border-radius: 12px; background: #eef5f1; }
+.config-help summary { cursor: pointer; font-weight: 700; }
+.config-help ol, .config-help p { margin: .6rem 0 0; }
+.config-help code { word-break: break-all; }
+.config-actions { margin-top: 1.25rem; }
+.config-test { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.config-test-row { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: .4rem; }
+.config-test-row .form-control { flex: 1 1 240px; }
 .actions-cell { display: flex; flex-wrap: wrap; gap: .4rem; }
 .table { font-size: 1rem; }

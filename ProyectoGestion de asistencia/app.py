@@ -45,12 +45,53 @@ os.makedirs(IMPORT_FOLDER, exist_ok=True)
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
 
-def send_telegram_message(message: str) -> bool:
-    """Envía un mensaje opcional sin impedir la operación principal."""
-    bot_token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
-    chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
-    if not bot_token or not chat_id:
-        return False
+# Claves de configuración que se pueden cargar desde el panel (Funciones experimentales).
+# Si una clave no está guardada en la base, se usa la variable de entorno del mismo nombre.
+CLAVES_CONFIG = (
+    'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_PASSWORD', 'SMTP_FROM_EMAIL',
+)
+CLAVES_SECRETAS = ('TELEGRAM_BOT_TOKEN', 'SMTP_PASSWORD')
+
+
+def get_setting(clave: str, default: str = '') -> str:
+    """Valor guardado en el panel; si no hay, la variable de entorno; si no, `default`."""
+    try:
+        conn = get_db()
+        try:
+            fila = conn.execute("SELECT valor FROM configuracion WHERE clave=?", (clave,)).fetchone()
+        finally:
+            conn.close()
+        if fila and (fila['valor'] or '').strip():
+            return fila['valor'].strip()
+    except sqlite3.Error:
+        pass  # La tabla todavía no existe: se usa el entorno.
+    return os.environ.get(clave, default).strip()
+
+
+def origen_setting(clave: str) -> str | None:
+    """Indica de dónde sale el valor de una clave: 'panel', 'entorno' o None."""
+    try:
+        conn = get_db()
+        try:
+            fila = conn.execute("SELECT valor FROM configuracion WHERE clave=?", (clave,)).fetchone()
+        finally:
+            conn.close()
+        if fila and (fila['valor'] or '').strip():
+            return 'panel'
+    except sqlite3.Error:
+        pass
+    return 'entorno' if os.environ.get(clave, '').strip() else None
+
+
+def telegram_enviar(message: str) -> tuple[bool, str]:
+    """Envía un mensaje por Telegram. Devuelve (ok, detalle) sin lanzar errores."""
+    bot_token = get_setting('TELEGRAM_BOT_TOKEN')
+    chat_id = get_setting('TELEGRAM_CHAT_ID')
+    if not bot_token:
+        return False, 'Falta cargar el token del bot de Telegram.'
+    if not chat_id:
+        return False, 'Falta cargar el ID del chat de Telegram.'
 
     endpoint = f'https://api.telegram.org/bot{bot_token}/sendMessage'
     payload = urlencode({'chat_id': chat_id, 'text': message}).encode('utf-8')
@@ -59,12 +100,24 @@ def send_telegram_message(message: str) -> bool:
         with urlopen(request, timeout=5) as response:
             result = json.loads(response.read().decode('utf-8'))
         if not result.get('ok'):
-            app.logger.error('Telegram rechazó el aviso de llegada tarde.')
-            return False
-        return True
-    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError):
-        app.logger.exception('No se pudo enviar el aviso de llegada tarde por Telegram.')
-        return False
+            app.logger.error('Telegram rechazó el mensaje.')
+            return False, 'Telegram rechazó el mensaje. Revisá el token y el ID del chat.'
+        return True, 'Mensaje enviado.'
+    except HTTPError as error:
+        app.logger.error('Telegram respondió con el código %s.', error.code)
+        if error.code in (401, 404):
+            return False, 'Telegram no reconoce el token. Revisá que esté bien copiado.'
+        if error.code in (400, 403):
+            return False, 'Telegram no pudo entregar el mensaje. Revisá el ID del chat y que el bot esté agregado a ese chat.'
+        return False, f'Telegram respondió con un error ({error.code}).'
+    except (URLError, TimeoutError, OSError, json.JSONDecodeError):
+        app.logger.exception('No se pudo enviar el mensaje por Telegram.')
+        return False, 'No se pudo conectar con Telegram. Revisá la conexión a internet.'
+
+
+def send_telegram_message(message: str) -> bool:
+    """Envía un mensaje opcional sin impedir la operación principal."""
+    return telegram_enviar(message)[0]
 
 
 def send_late_arrival_telegram(alumno, fecha: str, hora: str) -> bool:
@@ -79,44 +132,60 @@ def send_late_arrival_telegram(alumno, fecha: str, hora: str) -> bool:
     return send_telegram_message(message)
 
 
-def send_late_arrival_email(alumno, fecha: str, hora: str) -> bool:
-    """Envía un aviso opcional por email sin impedir el registro de asistencia."""
-    recipient = (alumno['email'] or '').strip()
-    smtp_host = os.environ.get('SMTP_HOST', '').strip()
-    smtp_username = os.environ.get('SMTP_USERNAME', '').strip()
-    smtp_password = os.environ.get('SMTP_PASSWORD', '')
-    sender = os.environ.get('SMTP_FROM_EMAIL', smtp_username).strip()
-    if not recipient or not smtp_host or not sender:
-        return False
+def email_enviar(recipient: str, subject: str, body: str) -> tuple[bool, str]:
+    """Envía un correo con la configuración SMTP. Devuelve (ok, detalle) sin lanzar errores."""
+    recipient = (recipient or '').strip()
+    smtp_host = get_setting('SMTP_HOST')
+    smtp_username = get_setting('SMTP_USERNAME')
+    smtp_password = get_setting('SMTP_PASSWORD')
+    sender = get_setting('SMTP_FROM_EMAIL', smtp_username)
+    if not smtp_host:
+        return False, 'Falta cargar el servidor de correo (SMTP).'
+    if not sender:
+        return False, 'Falta cargar el correo remitente.'
+    if not recipient:
+        return False, 'No hay un correo de destino.'
 
     message = EmailMessage()
-    message['Subject'] = 'Aviso de llegada tarde'
+    message['Subject'] = subject
     message['From'] = sender
     message['To'] = recipient
-    message.set_content(
-        'Se registró una llegada tarde en el sistema de asistencia.\n\n'
-        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
-        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
-        f'Fecha: {fecha}\n'
-        f'Hora de llegada: {hora}\n'
-    )
+    message.set_content(body)
 
     try:
-        port = int(os.environ.get('SMTP_PORT', '587'))
+        port = int(get_setting('SMTP_PORT', '587') or '587')
         if port == 465:
-            smtp = smtplib.SMTP_SSL(smtp_host, port, timeout=5)
+            smtp = smtplib.SMTP_SSL(smtp_host, port, timeout=8)
         else:
-            smtp = smtplib.SMTP(smtp_host, port, timeout=5)
+            smtp = smtplib.SMTP(smtp_host, port, timeout=8)
         with smtp:
             if port != 465:
                 smtp.starttls()
             if smtp_username and smtp_password:
                 smtp.login(smtp_username, smtp_password)
             smtp.send_message(message)
-        return True
-    except (OSError, smtplib.SMTPException, ValueError):
-        app.logger.exception('No se pudo enviar el aviso de llegada tarde por email.')
-        return False
+        return True, 'Correo enviado.'
+    except smtplib.SMTPAuthenticationError:
+        app.logger.exception('El servidor SMTP rechazó el usuario o la contraseña.')
+        return False, 'El servidor rechazó el usuario o la contraseña. Si usás Gmail, hace falta una clave de aplicación.'
+    except ValueError:
+        return False, 'El puerto del servidor de correo no es válido.'
+    except (OSError, smtplib.SMTPException):
+        app.logger.exception('No se pudo enviar el correo.')
+        return False, 'No se pudo enviar el correo. Revisá el servidor, el puerto y la conexión.'
+
+
+def send_late_arrival_email(alumno, fecha: str, hora: str) -> bool:
+    """Envía un aviso opcional por email sin impedir el registro de asistencia."""
+    cuerpo = (
+        'Se registró una llegada tarde en el sistema de asistencia.\n\n'
+        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
+        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
+        f'Fecha: {fecha}\n'
+        f'Hora de llegada: {hora}\n'
+    )
+    return email_enviar(alumno['email'], 'Aviso de llegada tarde', cuerpo)[0]
+
 
 # Preserve existing backup files and their database history when moving to backup_db/.
 if os.path.isdir(LEGACY_BACKUP_FOLDER):
@@ -181,6 +250,13 @@ def init_db():
             tipo TEXT NOT NULL CHECK(tipo IN ('creado', 'cargado')),
             fecha TEXT NOT NULL,
             tamano INTEGER NOT NULL
+        )
+    ''')
+
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS configuracion (
+            clave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL
         )
     ''')
 
@@ -586,19 +662,79 @@ def dashboard_directivo():
                            total_preceptores=total_preceptores)
 
 
-@app.route('/directivo/telegram/test', methods=['POST'])
+GRUPOS_CONFIG = {
+    'telegram': ('TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID'),
+    'correo': ('SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_PASSWORD', 'SMTP_FROM_EMAIL'),
+}
+
+
+def guardar_config(grupo: str, form) -> str | None:
+    """Guarda los datos de un grupo. Devuelve un mensaje de error o None si salió bien.
+
+    Los datos secretos (token y contraseña) nunca se muestran de nuevo: si el campo
+    llega vacío se conserva el valor guardado. El resto se borra si llega vacío."""
+    valores = {}
+    for clave in GRUPOS_CONFIG[grupo]:
+        valores[clave] = (form.get(clave) or '').strip()
+    if grupo == 'correo':
+        if valores['SMTP_PORT']:
+            if not valores['SMTP_PORT'].isdigit() or not 1 <= int(valores['SMTP_PORT']) <= 65535:
+                return 'El puerto debe ser un número entre 1 y 65535.'
+        remitente = valores['SMTP_FROM_EMAIL']
+        if remitente and ('@' not in remitente or ' ' in remitente):
+            return 'El correo remitente no parece válido.'
+    if grupo == 'telegram' and valores['TELEGRAM_CHAT_ID'] and not valores['TELEGRAM_CHAT_ID'].lstrip('-').isdigit():
+        return 'El ID del chat son solo números (puede empezar con un guion).'
+
+    conn = get_db()
+    try:
+        for clave, valor in valores.items():
+            if clave in CLAVES_SECRETAS and not valor:
+                continue
+            if valor:
+                conn.execute(
+                    "INSERT INTO configuracion (clave, valor) VALUES (?, ?) "
+                    "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (clave, valor))
+            else:
+                conn.execute("DELETE FROM configuracion WHERE clave=?", (clave,))
+        conn.commit()
+    finally:
+        conn.close()
+    return None
+
+
+@app.route('/directivo/experimental', methods=['GET', 'POST'])
 @login_required
 @rol_requerido('directivo')
-def probar_telegram():
-    if not os.environ.get('TELEGRAM_BOT_TOKEN', '').strip():
-        flash('Falta configurar TELEGRAM_BOT_TOKEN.')
-    elif not os.environ.get('TELEGRAM_CHAT_ID', '').strip():
-        flash('Falta configurar TELEGRAM_CHAT_ID.')
-    elif send_telegram_message('Mensaje de prueba del sistema de asistencia.'):
-        flash('Mensaje de prueba enviado correctamente por Telegram.')
-    else:
-        flash('No se pudo enviar el mensaje de prueba por Telegram. Revisá el token, el chat y la conexión.')
-    return redirect(url_for('dashboard_directivo'))
+def funciones_experimentales():
+    if request.method == 'POST':
+        accion = request.form.get('accion', '')
+        if accion in ('guardar_telegram', 'guardar_correo'):
+            grupo = accion.split('_', 1)[1]
+            error = guardar_config(grupo, request.form)
+            if error:
+                flash(error, 'danger')
+            else:
+                flash('Datos guardados.', 'success')
+        elif accion == 'probar_telegram':
+            ok, detalle = telegram_enviar('Mensaje de prueba del sistema de asistencia.')
+            flash('¡Listo! Te llegó un mensaje de prueba por Telegram.' if ok else detalle, 'success' if ok else 'danger')
+        elif accion == 'probar_correo':
+            destino = (request.form.get('destino') or '').strip()
+            ok, detalle = email_enviar(destino, 'Correo de prueba',
+                                       'Este es un correo de prueba del sistema de asistencia. Si lo ves, los avisos por correo funcionan.')
+            flash(f'¡Listo! Se envió un correo de prueba a {destino}.' if ok else detalle, 'success' if ok else 'danger')
+        else:
+            flash('Acción no reconocida.', 'danger')
+        return redirect(url_for('funciones_experimentales') + '#' + ('correo' if 'correo' in accion else 'telegram'))
+
+    conn = get_db()
+    usuario = conn.execute("SELECT email FROM usuarios WHERE id=?", (session['usuario_id'],)).fetchone()
+    conn.close()
+    config = {clave: (origen_setting(clave), None if clave in CLAVES_SECRETAS else get_setting(clave))
+              for clave in CLAVES_CONFIG}
+    return render_template('experimental.html', config=config, mi_email=usuario['email'] if usuario else '')
+
 
 @app.route('/preceptor')
 @login_required
