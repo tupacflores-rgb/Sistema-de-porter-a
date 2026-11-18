@@ -41,6 +41,20 @@
         <legend>Foto de perfil</legend>
         <p class="form-hint">La foto se guarda como imagen de perfil y no se utiliza para reconocimiento facial.</p>
         <div class="field"><label for="foto">Subir una imagen</label><input id="foto" type="file" name="foto" accept="image/png, image/jpeg, image/gif" class="form-control"><span class="form-hint">Formatos permitidos: PNG, JPG o GIF.</span></div>
+        <div class="photo-capture mt-3">
+          <p class="form-hint mb-2">También podés sacar la foto en el momento con la cámara del dispositivo.</p>
+          <video id="profileCamera" class="w-100 rounded bg-dark mb-2" autoplay playsinline hidden></video>
+          <canvas id="profileCanvas" hidden></canvas>
+          <img id="profilePreview" class="img-fluid rounded mb-2" alt="Vista previa de la foto capturada" hidden>
+          <input type="hidden" name="foto_data" id="fotoData">
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" id="startProfileCamera" class="btn btn-outline-primary"><i class="fa-solid fa-camera" aria-hidden="true"></i> Sacar foto</button>
+            <button type="button" id="captureProfilePhoto" class="btn btn-primary" hidden><i class="fa-solid fa-circle-dot" aria-hidden="true"></i> Capturar</button>
+            <button type="button" id="retakeProfilePhoto" class="btn btn-outline-secondary" hidden>Repetir</button>
+            <button type="button" id="clearProfilePhoto" class="btn btn-outline-secondary" hidden>Quitar foto</button>
+          </div>
+          <div id="profileCameraStatus" class="small mt-2" role="status" aria-live="polite"></div>
+        </div>
         {% if usuario and usuario.profile_photo %}<div class="current-photo"><span>Foto actual</span><img src="{{ url_for('static', filename='uploads/' ~ usuario.profile_photo) }}" alt="Foto de perfil actual"></div>{% endif %}
       </fieldset>
     </div>
@@ -136,6 +150,106 @@
     const submitButton = document.getElementById('submitForm');
     let currentStep = 0;
 
+    // Captura de foto con cámara para el paso 3.
+    const photoFileInput = document.getElementById('foto');
+    const photoVideo = document.getElementById('profileCamera');
+    const photoCanvas = document.getElementById('profileCanvas');
+    const photoPreview = document.getElementById('profilePreview');
+    const photoStatus = document.getElementById('profileCameraStatus');
+    const photoDataInput = document.getElementById('fotoData');
+    const startPhotoButton = document.getElementById('startProfileCamera');
+    const capturePhotoButton = document.getElementById('captureProfilePhoto');
+    const retakePhotoButton = document.getElementById('retakeProfilePhoto');
+    const clearPhotoButton = document.getElementById('clearProfilePhoto');
+    let photoStream = null;
+
+    function stopProfileCamera() {
+      if (photoStream) photoStream.getTracks().forEach(track => track.stop());
+      photoStream = null;
+      photoVideo.srcObject = null;
+      photoVideo.hidden = true;
+      capturePhotoButton.hidden = true;
+      if (!photoDataInput.value) startPhotoButton.hidden = false;
+    }
+
+    function resetProfilePhoto() {
+      photoDataInput.value = '';
+      photoPreview.hidden = true;
+      photoPreview.removeAttribute('src');
+      capturePhotoButton.hidden = true;
+      retakePhotoButton.hidden = true;
+      clearPhotoButton.hidden = true;
+      startPhotoButton.hidden = false;
+    }
+
+    async function openProfileCamera() {
+      photoStatus.textContent = '';
+      if (!navigator.mediaDevices?.getUserMedia) {
+        photoStatus.textContent = 'La cámara requiere HTTPS y un navegador compatible.';
+        return;
+      }
+      try {
+        photoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        photoVideo.srcObject = photoStream;
+        await photoVideo.play();
+        photoVideo.hidden = false;
+        capturePhotoButton.hidden = false;
+        startPhotoButton.hidden = true;
+        retakePhotoButton.hidden = true;
+        clearPhotoButton.hidden = true;
+        photoPreview.hidden = true;
+      } catch (error) {
+        photoStatus.textContent = 'No se pudo abrir la cámara: ' + (error.message || error);
+        startPhotoButton.hidden = false;
+      }
+    }
+
+    startPhotoButton.addEventListener('click', openProfileCamera);
+
+    capturePhotoButton.addEventListener('click', () => {
+      if (!photoVideo.videoWidth || !photoVideo.videoHeight) {
+        photoStatus.textContent = 'La cámara todavía se está iniciando. Intentá nuevamente.';
+        return;
+      }
+      photoCanvas.width = photoVideo.videoWidth;
+      photoCanvas.height = photoVideo.videoHeight;
+      photoCanvas.getContext('2d').drawImage(photoVideo, 0, 0);
+      photoDataInput.value = photoCanvas.toDataURL('image/jpeg', 0.88);
+      photoPreview.src = photoDataInput.value;
+      photoPreview.hidden = false;
+      photoFileInput.value = '';
+      stopProfileCamera();
+      startPhotoButton.hidden = true;
+      retakePhotoButton.hidden = false;
+      clearPhotoButton.hidden = false;
+      photoStatus.textContent = 'Foto lista. Se guardará al finalizar el formulario.';
+    });
+
+    retakePhotoButton.addEventListener('click', () => {
+      resetProfilePhoto();
+      openProfileCamera();
+    });
+
+    clearPhotoButton.addEventListener('click', () => {
+      resetProfilePhoto();
+      photoStatus.textContent = 'Foto descartada.';
+    });
+
+    photoFileInput.addEventListener('change', () => {
+      if (photoFileInput.files.length) {
+        stopProfileCamera();
+        photoDataInput.value = '';
+        photoPreview.hidden = true;
+        photoPreview.removeAttribute('src');
+        startPhotoButton.hidden = false;
+        retakePhotoButton.hidden = true;
+        clearPhotoButton.hidden = true;
+        photoStatus.textContent = '';
+      }
+    });
+
+    window.addEventListener('pagehide', stopProfileCamera);
+
     function validateStep() {
       const fields = [...steps[currentStep].querySelectorAll('input, select')]
         .filter(field => !field.disabled);
@@ -157,6 +271,7 @@
 
     function showStep(step) {
       currentStep = step;
+      if (currentStep !== 2) stopProfileCamera();
       steps.forEach((item, index) => {
         item.hidden = index !== currentStep;
         item.classList.toggle('is-active', index === currentStep);
