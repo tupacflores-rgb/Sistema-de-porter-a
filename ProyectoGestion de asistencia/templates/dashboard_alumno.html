@@ -1,5 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Mi asistencia</h2>
-<a href="{{ url_for('ver_mi_asistencia') }}" class="btn btn-primary">Consultar mis registros</a>
+<div class="dashboard-head">
+  <div>
+    <div class="login-kicker">Alumno/a</div>
+    <h2>Mi asistencia</h2>
+  </div>
+</div>
+<div class="tile-grid">
+  <a href="{{ url_for('ver_mi_asistencia') }}" class="action-tile tile-primary">
+    <span class="tile-icon"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i></span>
+    <span class="tile-title">Ver mis registros</span>
+    <span class="tile-text">Mirá tus presentes, ausentes y llegadas tarde.</span>
+  </a>
+</div>
 {% endblock %}

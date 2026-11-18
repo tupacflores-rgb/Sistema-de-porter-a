@@ -1,124 +1,58 @@
 {% extends "base.html" %}
 
-{% block content %}
-<h2>Control de entrada</h2>
-<p>Escaneá el QR del alumno para registrar su llegada.</p>
-<button type="button" class="btn btn-primary" id="btnScan">Escanear QR</button>
+{# Los avisos de ingreso se muestran dentro del escáner, no arriba de la página. #}
+{% block flashes %}{% endblock %}
 
-<div class="modal fade" id="scannerModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-fullscreen">
-    <div class="modal-content scanner-modal-content">
-      <div class="scanner-stage" id="scannerStage">
-        <video id="video" class="scanner-video" autoplay playsinline muted></video>
-        <canvas id="canvas" hidden></canvas>
-        <header class="scanner-topbar">
-          <span class="scanner-brand"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> Control de entrada</span>
-          <button type="button" class="scanner-close" id="btnStop" aria-label="Cerrar escáner"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-        </header>
-        <div class="scanner-guide">
-          <p id="scanStatus" class="scanner-status" role="status" aria-live="polite">Iniciando cámara…</p>
-          <div class="scanner-frame" aria-hidden="true">
-            <span class="scanner-corner scanner-corner-tl"></span><span class="scanner-corner scanner-corner-tr"></span>
-            <span class="scanner-corner scanner-corner-bl"></span><span class="scanner-corner scanner-corner-br"></span>
-            <span class="scanner-line"></span>
-          </div>
-          <p class="scanner-hint">Centrá el código QR dentro del marco</p>
-          <button type="button" class="btn scanner-retry" id="scannerRetry" hidden>Volver a intentar</button>
-        </div>
-      </div>
+{% block content %}
+<section class="station" aria-labelledby="station-title">
+  <div class="station-head">
+    <div class="login-kicker">Portería</div>
+    <h2 id="station-title">¿Quién está entrando?</h2>
+    <p>Tocá el botón verde y mostrale el código QR a la cámara.</p>
+  </div>
+
+  <button type="button" class="scan-hero" id="btnScan">
+    <span class="scan-hero-icon"><i class="fa-solid fa-qrcode" aria-hidden="true"></i></span>
+    <span class="scan-hero-text">Escanear QR</span>
+    <span class="scan-hero-sub">Tocá acá para abrir la cámara</span>
+  </button>
+
+  <div class="station-stats">
+    <div class="stat-pill">
+      <span class="stat-pill-number">{{ ingresos_hoy }}</span>
+      <span class="stat-pill-label">ingresaron hoy</span>
+    </div>
+    <div class="stat-pill stat-pill-late">
+      <span class="stat-pill-number">{{ tardes_hoy }}</span>
+      <span class="stat-pill-label">llegaron tarde</span>
     </div>
   </div>
-</div>
+
+  <section class="recent" aria-labelledby="recent-title">
+    <h3 id="recent-title">Últimos ingresos</h3>
+    {% if recientes %}
+    <ul class="recent-list">
+      {% for r in recientes %}
+      <li class="recent-item {{ 'is-late' if r.estado == 'tardanza' else '' }}">
+        <span class="recent-name">{{ r.nombre }} {{ r.apellido }} {% if r.curso %}<small>{{ r.curso }}</small>{% endif %}</span>
+        <span class="recent-time">{{ r.hora[:5] if r.hora else '--:--' }}
+          {% if r.estado == 'tardanza' %}<span class="badge text-bg-warning">Tarde</span>{% else %}<span class="badge text-bg-success">A tiempo</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="recent-empty">Todavía no ingresó nadie hoy.</p>
+    {% endif %}
+  </section>
+</section>
+
+{% set scanner_title = 'Control de entrada' %}
+{% set auto_open = True %}
+{% include '_scanner.html' %}
 {% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-<script>
-let video, canvas, ctx, scanning = false, stream = null;
-const modalElement = document.getElementById('scannerModal');
-const scannerModal = new bootstrap.Modal(modalElement);
-const statusElement = document.getElementById('scanStatus');
-const retryButton = document.getElementById('scannerRetry');
-
-window.addEventListener('DOMContentLoaded', () => {
-  video = document.getElementById('video');
-  canvas = document.getElementById('canvas');
-  ctx = canvas.getContext('2d');
-  document.getElementById('btnScan').addEventListener('click', openScanner);
-  document.getElementById('btnStop').addEventListener('click', () => {
-    stopScanner();
-    scannerModal.hide();
-  });
-  retryButton.addEventListener('click', startCamera);
-  modalElement.addEventListener('hidden.bs.modal', stopScanner);
-  if (new URLSearchParams(window.location.search).get('scan') === '1') openScanner();
-});
-
-function openScanner() {
-  statusElement.textContent = 'Iniciando cámara…';
-  retryButton.hidden = true;
-  scannerModal.show();
-  startCamera();
-}
-
-async function startCamera() {
-  stopScanner();
-  statusElement.textContent = 'Iniciando cámara…';
-  retryButton.hidden = true;
-  try {
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error('La cámara requiere HTTPS y un navegador compatible.');
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-    video.srcObject = stream;
-    await video.play();
-    scanning = true;
-    statusElement.textContent = 'Apuntá el QR hacia la cámara';
-    requestAnimationFrame(tick);
-  } catch (error) {
-    statusElement.textContent = error.name === 'NotAllowedError'
-      ? 'Permiso de cámara denegado. Revisá la configuración del navegador.'
-      : error.name === 'NotFoundError' ? 'No se detectó una cámara en este dispositivo.' : (error.message || 'No se pudo acceder a la cámara.');
-    retryButton.hidden = false;
-  }
-}
-
-function stopScanner() {
-  scanning = false;
-  if (stream) stream.getTracks().forEach(track => track.stop());
-  stream = null;
-  if (video) video.srcObject = null;
-}
-
-function tick() {
-  if (!scanning) return;
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-    if (code) {
-      stopScanner();
-      statusElement.textContent = 'QR detectado. Validando…';
-      validateToken(code.data);
-      return;
-    }
-  }
-  requestAnimationFrame(tick);
-}
-
-async function validateToken(token) {
-  try {
-    const response = await fetch('{{ url_for("validate_qr") }}', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }), credentials: 'same-origin'
-    });
-    const data = await response.json();
-    if (data.ok) window.location.href = '/qr/' + encodeURIComponent(token);
-    else throw new Error(data.error || 'Token inválido.');
-  } catch (error) {
-    statusElement.textContent = error.message || 'No se pudo validar el código.';
-    retryButton.hidden = false;
-  }
-}
-</script>
+<script src="{{ url_for('static', filename='scanner.js') }}"></script>
 {% endblock %}

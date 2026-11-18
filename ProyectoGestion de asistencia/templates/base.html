@@ -7,30 +7,35 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='facil.css') }}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
+  {% set etiquetas_rol = {'entrada': 'Portería', 'preceptor': 'Preceptor/a', 'directivo': 'Dirección', 'alumno': 'Alumno/a'} %}
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
-      <a class="navbar-brand" href="{{ url_for('dashboard') }}">Colegio</a>
+      <a class="navbar-brand" href="{{ url_for('dashboard') }}" aria-label="Ir al inicio"><i class="fa-solid fa-house" aria-hidden="true"></i> Inicio</a>
       {% if session.usuario_id %}
       <div class="navbar-nav ms-auto">
-        <span class="nav-link text-light">Hola, {{ session.nombre }} ({{ session.rol }})</span>
-        <a class="nav-link" href="{{ url_for('logout') }}">Cerrar sesión</a>
+        <span class="nav-link text-light user-chip"><i class="fa-solid fa-circle-user" aria-hidden="true"></i> {{ session.nombre }} <small>· {{ etiquetas_rol.get(session.rol, session.rol) }}</small></span>
+        <a class="nav-link logout-link" href="{{ url_for('logout') }}"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Salir</a>
       </div>
       {% endif %}
     </div>
   </nav>
   <main class="container mt-4">
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        {% for msg in messages %}
-          <div class="alert alert-info alert-dismissible fade show" role="alert">
-            {{ msg }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
+    {% block flashes %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for categoria, msg in messages %}
+        {% set clase = {'success': 'success', 'warning': 'warning', 'danger': 'danger'}.get(categoria, 'info') %}
+        {% set icono = {'success': 'fa-circle-check', 'warning': 'fa-triangle-exclamation', 'danger': 'fa-circle-xmark'}.get(categoria, 'fa-circle-info') %}
+        <div class="alert alert-{{ clase }} alert-dismissible fade show" role="alert">
+          <i class="fa-solid {{ icono }}" aria-hidden="true"></i>
+          <span>{{ msg }}</span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar aviso"></button>
+        </div>
+      {% endfor %}
     {% endwith %}
+    {% endblock %}
     {% block content %}{% endblock %}
   </main>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

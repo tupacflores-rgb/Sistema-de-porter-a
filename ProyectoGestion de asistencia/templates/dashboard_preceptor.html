@@ -1,128 +1,37 @@
 {% extends "base.html" %}
 
 {% block content %}
-<p>Curso asignado: <strong>{{ curso if curso else 'Ninguno' }}</strong></p>
-
-<div class="list-group">
-  <a href="{{ url_for('registrar_asistencia') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-pen-to-square"></i> Registrar asistencia</a>
-  <a href="{{ url_for('ver_asistencia_curso') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-clipboard-list"></i> Ver asistencia del curso</a>
-  <button class="list-group-item list-group-item-action" id="btnScan"><i class="fa-solid fa-qrcode"></i> Escanear QR</button>
-</div>
-
-<div class="modal fade" id="scannerModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-fullscreen">
-    <div class="modal-content scanner-modal-content">
-      <div class="scanner-stage" id="scannerStage">
-        <video id="video" class="scanner-video" autoplay playsinline muted></video>
-        <canvas id="canvas" hidden></canvas>
-        <header class="scanner-topbar">
-          <span class="scanner-brand"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> Escaneo de asistencia</span>
-          <button type="button" class="scanner-close" id="btnStop" aria-label="Cerrar escáner"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-        </header>
-        <div class="scanner-guide">
-          <p id="scanStatus" class="scanner-status" role="status" aria-live="polite">Iniciando cámara…</p>
-          <div class="scanner-frame" aria-hidden="true">
-            <span class="scanner-corner scanner-corner-tl"></span><span class="scanner-corner scanner-corner-tr"></span>
-            <span class="scanner-corner scanner-corner-bl"></span><span class="scanner-corner scanner-corner-br"></span>
-            <span class="scanner-line"></span>
-          </div>
-          <p class="scanner-hint">Centrá el código QR dentro del marco</p>
-          <button type="button" class="btn scanner-retry" id="scannerRetry" hidden>Volver a intentar</button>
-        </div>
-      </div>
-    </div>
+<div class="dashboard-head">
+  <div>
+    <div class="login-kicker">Preceptoría</div>
+    <h2>¿Qué querés hacer?</h2>
+    <p>Curso asignado: <strong>{{ curso if curso else 'Ninguno' }}</strong></p>
   </div>
 </div>
+
+<div class="tile-grid">
+  <button type="button" class="action-tile tile-primary" id="btnScan">
+    <span class="tile-icon"><i class="fa-solid fa-qrcode" aria-hidden="true"></i></span>
+    <span class="tile-title">Escanear QR</span>
+    <span class="tile-text">Registrar la llegada de un alumno con su código.</span>
+  </button>
+  <a href="{{ url_for('registrar_asistencia') }}" class="action-tile">
+    <span class="tile-icon"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></span>
+    <span class="tile-title">Tomar lista</span>
+    <span class="tile-text">Marcar quién vino, quién faltó y quién llegó tarde.</span>
+  </a>
+  <a href="{{ url_for('ver_asistencia_curso') }}" class="action-tile">
+    <span class="tile-icon"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i></span>
+    <span class="tile-title">Ver asistencia del curso</span>
+    <span class="tile-text">Consultar los registros de tus alumnos.</span>
+  </a>
+</div>
+
+{% set scanner_title = 'Escaneo de asistencia' %}
+{% include '_scanner.html' %}
 {% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-<script>
-let video, canvas, ctx, scanning = false, stream = null;
-const modalElement = document.getElementById('scannerModal');
-const scannerModal = new bootstrap.Modal(modalElement);
-const statusElement = document.getElementById('scanStatus');
-const retryButton = document.getElementById('scannerRetry');
-
-document.addEventListener('DOMContentLoaded', () => {
-  video = document.getElementById('video');
-  canvas = document.getElementById('canvas');
-  ctx = canvas.getContext('2d');
-  document.getElementById('btnScan').addEventListener('click', openScanner);
-  document.getElementById('btnStop').addEventListener('click', () => {
-    stopScanner();
-    scannerModal.hide();
-  });
-  retryButton.addEventListener('click', startCamera);
-  modalElement.addEventListener('hidden.bs.modal', stopScanner);
-  if (new URLSearchParams(window.location.search).get('scan') === '1') openScanner();
-});
-
-function openScanner() {
-  statusElement.textContent = 'Iniciando cámara…';
-  retryButton.hidden = true;
-  scannerModal.show();
-  startCamera();
-}
-
-async function startCamera() {
-  stopScanner();
-  statusElement.textContent = 'Iniciando cámara…';
-  retryButton.hidden = true;
-  try {
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error('La cámara requiere HTTPS y un navegador compatible.');
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-    video.srcObject = stream;
-    await video.play();
-    scanning = true;
-    statusElement.textContent = 'Apuntá el QR hacia la cámara';
-    requestAnimationFrame(tick);
-  } catch (error) {
-    statusElement.textContent = error.name === 'NotAllowedError'
-      ? 'Permiso de cámara denegado. Revisá la configuración del navegador.'
-      : error.name === 'NotFoundError' ? 'No se detectó una cámara en este dispositivo.' : (error.message || 'No se pudo acceder a la cámara.');
-    retryButton.hidden = false;
-  }
-}
-
-function stopScanner() {
-  scanning = false;
-  if (stream) stream.getTracks().forEach(track => track.stop());
-  stream = null;
-  if (video) video.srcObject = null;
-}
-
-function tick() {
-  if (!scanning) return;
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-    if (code) {
-      stopScanner();
-      statusElement.textContent = 'QR detectado. Validando…';
-      validateToken(code.data);
-      return;
-    }
-  }
-  requestAnimationFrame(tick);
-}
-
-async function validateToken(token) {
-  try {
-    const response = await fetch('{{ url_for("validate_qr") }}', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }), credentials: 'same-origin'
-    });
-    const data = await response.json();
-    if (data.ok) window.location.href = '/qr/' + encodeURIComponent(token);
-    else throw new Error(data.error || 'Token inválido.');
-  } catch (error) {
-    statusElement.textContent = error.message || 'No se pudo validar el código.';
-    retryButton.hidden = false;
-  }
-}
-</script>
+<script src="{{ url_for('static', filename='scanner.js') }}"></script>
 {% endblock %}

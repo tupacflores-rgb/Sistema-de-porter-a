@@ -1,16 +1,18 @@
 {% extends "base.html" %}
+{% from "_macros.html" import volver %}
 {% block content %}
-<h2>Backups de la base de datos</h2>
+{{ volver(url_for("dashboard_directivo")) }}
+<h2>Copias de seguridad</h2>
 
 <div class="row g-3 mb-4">
   <div class="col-md-6">
     <div class="card h-100">
       <div class="card-body">
-        <h5 class="card-title">Crear backup</h5>
-        <p class="card-text">Genera una copia completa de la base de datos actual.</p>
+        <h5 class="card-title"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar una copia</h5>
+        <p class="card-text">Guarda una copia de todos los datos de hoy. Conviene hacerlo seguido.</p>
         <form method="post">
           <input type="hidden" name="action" value="crear">
-          <button type="submit" class="btn btn-primary">Crear backup ahora</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus" aria-hidden="true"></i> Guardar copia ahora</button>
         </form>
       </div>
     </div>
@@ -18,23 +20,23 @@
   <div class="col-md-6">
     <div class="card h-100">
       <div class="card-body">
-        <h5 class="card-title">Cargar backup</h5>
-        <p class="card-text">Restaura la base usando un archivo SQLite.</p>
+        <h5 class="card-title"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Recuperar una copia</h5>
+        <p class="card-text">Vuelve a cargar los datos desde una copia guardada. Reemplaza los datos actuales.</p>
         <form method="post" enctype="multipart/form-data">
           <input type="hidden" name="action" value="cargar">
           <input type="file" name="backup" accept=".db,.sqlite,.sqlite3" class="form-control mb-3" required>
-          <button type="submit" class="btn btn-warning" onclick="return confirm('Se creará un backup de seguridad y se reemplazará la base actual. ¿Continuar?')">Cargar y restaurar</button>
+          <button type="submit" class="btn btn-warning" onclick="return confirm('Se guardará una copia de seguridad y se reemplazarán los datos actuales por los del archivo. ¿Querés continuar?')">Recuperar datos</button>
         </form>
       </div>
     </div>
   </div>
 </div>
 
-<h3>Historial de backups</h3>
+<h3>Copias guardadas</h3>
 <div class="table-responsive">
   <table class="table table-striped align-middle">
     <thead>
-      <tr><th>Archivo</th><th>Tipo</th><th>Fecha</th><th>Tamaño</th><th>Acción</th></tr>
+      <tr><th>Archivo</th><th>Tipo</th><th>Fecha</th><th>Tamaño</th><th></th></tr>
     </thead>
     <tbody>
       {% for backup in backups %}
@@ -43,13 +45,12 @@
         <td>{{ backup.tipo|capitalize }}</td>
         <td>{{ backup.fecha }}</td>
         <td>{{ '%.2f'|format(backup.tamano / 1024) }} KB</td>
-        <td><a href="{{ url_for('descargar_backup', filename=backup.filename) }}" class="btn btn-sm btn-outline-primary">Descargar</a></td>
+        <td><a href="{{ url_for('descargar_backup', filename=backup.filename) }}" class="btn btn-outline-primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Descargar</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="text-muted">Todavía no hay backups registrados.</td></tr>
+      <tr><td colspan="5" class="text-muted">Todavía no hay copias guardadas.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
-<a href="{{ url_for('dashboard_directivo') }}" class="btn btn-secondary">Volver</a>
 {% endblock %}
