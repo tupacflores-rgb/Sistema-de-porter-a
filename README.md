@@ -29,6 +29,8 @@ La identificación para registrar llegadas se realiza mediante códigos QR o car
 
 La aplicación puede enviar avisos automáticos por email y Telegram cuando un alumno llega tarde mediante QR. También puede notificar por email cuando un preceptor marca manualmente una tardanza. Las notificaciones son opcionales y no impiden registrar la asistencia si el servicio externo no está disponible.
 
+Los canales se administran desde **Panel de Dirección → Funciones experimentales**, donde se pueden activar o desactivar y enviar pruebas de correo y Telegram. El estado se guarda en la base de datos (tabla `ajustes`). Por defecto ambos canales quedan activados, pero solo se envía algo si las credenciales están configuradas.
+
 ## Roles del sistema
 
 | Rol | Acceso principal |
@@ -133,6 +135,44 @@ python app.py
 ```
 
 Usa una clave de aplicación cuando el proveedor de correo tenga autenticación en dos pasos y no guardes estas variables en el repositorio.
+
+### Configuración con archivo `.env`
+
+La aplicación carga automáticamente un archivo `.env` ubicado en `ProyectoGestion de asistencia/`. Podés copiar `.env.example` y completar los valores:
+
+```powershell
+Set-Location 'ProyectoGestion de asistencia'
+Copy-Item .env.example .env
+notepad .env
+```
+
+Ejemplo con Gmail (requiere una contraseña de aplicación):
+
+```dotenv
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=tu-cuenta@gmail.com
+SMTP_PASSWORD=clave-de-aplicacion
+SMTP_FROM_EMAIL=tu-cuenta@gmail.com
+
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+TELEGRAM_CHAT_ID=123456789
+```
+
+Después de modificar `.env`, reiniciá `python app.py` para que se apliquen los cambios.
+
+También podés completar o actualizar estas credenciales desde **Funciones experimentales → Guardar configuración**. La aplicación escribe los valores en `.env` de forma atómica, conserva los comentarios y el resto de las variables, y aplica los cambios sin necesidad de reiniciar. Por seguridad, la contraseña SMTP y el token del bot no se muestran: si dejás esos campos vacíos se conserva el valor guardado.
+
+### Activar y probar las notificaciones
+
+1. Iniciá sesión con una cuenta de rol **directivo**.
+2. En el **Panel de Dirección**, entrá a **Funciones experimentales**.
+3. Completá y guardá las credenciales de correo y/o Telegram desde las tarjetas.
+4. Revisá la configuración detectada en cada tarjeta.
+5. Usá **Probar envío** para el correo o **Probar envío por Telegram** para confirmar que las credenciales funcionan.
+6. Activá cada canal con su botón. Mientras esté desactivado, el sistema no envía avisos automáticos, aunque la configuración sea válida.
+
+Para Telegram, crea el bot con `@BotFather`, iniciá una conversación con el bot (o agregalo al grupo), envía un mensaje y obtén el `chat_id`. Para correo, cada alumno debe tener una dirección válida cargada en su usuario.
 
 ## Pruebas
 
