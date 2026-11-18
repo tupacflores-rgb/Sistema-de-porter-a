@@ -30,8 +30,6 @@
   <a href="{{ url_for('reporte_asistencia') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-chart-column"></i> Ver asistencia por curso</a>
   <a href="{{ url_for('carga_masiva') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-file-import"></i> Carga masiva de datos</a>
   <a href="{{ url_for('gestion_backups') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-hard-drive"></i> Backups de la base de datos</a>
-  <form method="post" action="{{ url_for('probar_telegram') }}" class="list-group-item p-0">
-    <button type="submit" class="btn btn-link list-group-item-action text-start w-100"><i class="fa-brands fa-telegram"></i> Probar notificaciones de Telegram</button>
-  </form>
+  <a href="{{ url_for('funciones_experimentales') }}" class="list-group-item list-group-item-action"><i class="fa-solid fa-flask"></i> Funciones experimentales</a>
 </div>
 {% endblock %}

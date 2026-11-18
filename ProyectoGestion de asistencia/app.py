@@ -67,21 +67,9 @@ def send_telegram_message(message: str) -> bool:
         return False
 
 
-def send_late_arrival_telegram(alumno, fecha: str, hora: str) -> bool:
-    """Envía un aviso opcional de llegada tarde."""
-    message = (
-        'Aviso de llegada tarde\n'
-        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
-        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
-        f'Fecha: {fecha}\n'
-        f'Hora de llegada: {hora}'
-    )
-    return send_telegram_message(message)
-
-
-def send_late_arrival_email(alumno, fecha: str, hora: str) -> bool:
-    """Envía un aviso opcional por email sin impedir el registro de asistencia."""
-    recipient = (alumno['email'] or '').strip()
+def send_email_message(recipient: str, subject: str, body: str) -> bool:
+    """Envía un correo opcional sin impedir la operación principal."""
+    recipient = (recipient or '').strip()
     smtp_host = os.environ.get('SMTP_HOST', '').strip()
     smtp_username = os.environ.get('SMTP_USERNAME', '').strip()
     smtp_password = os.environ.get('SMTP_PASSWORD', '')
@@ -90,16 +78,10 @@ def send_late_arrival_email(alumno, fecha: str, hora: str) -> bool:
         return False
 
     message = EmailMessage()
-    message['Subject'] = 'Aviso de llegada tarde'
+    message['Subject'] = subject
     message['From'] = sender
     message['To'] = recipient
-    message.set_content(
-        'Se registró una llegada tarde en el sistema de asistencia.\n\n'
-        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
-        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
-        f'Fecha: {fecha}\n'
-        f'Hora de llegada: {hora}\n'
-    )
+    message.set_content(body)
 
     try:
         port = int(os.environ.get('SMTP_PORT', '587'))
@@ -115,8 +97,36 @@ def send_late_arrival_email(alumno, fecha: str, hora: str) -> bool:
             smtp.send_message(message)
         return True
     except (OSError, smtplib.SMTPException, ValueError):
-        app.logger.exception('No se pudo enviar el aviso de llegada tarde por email.')
+        app.logger.exception('No se pudo enviar el correo %s', subject)
         return False
+
+
+def send_late_arrival_telegram(alumno, fecha: str, hora: str) -> bool:
+    """Envía un aviso opcional de llegada tarde si el canal está activo."""
+    if not notificaciones_activas('telegram'):
+        return False
+    message = (
+        'Aviso de llegada tarde\n'
+        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
+        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
+        f'Fecha: {fecha}\n'
+        f'Hora de llegada: {hora}'
+    )
+    return send_telegram_message(message)
+
+
+def send_late_arrival_email(alumno, fecha: str, hora: str) -> bool:
+    """Envía un aviso opcional por email sin impedir el registro de asistencia."""
+    if not notificaciones_activas('email'):
+        return False
+    body = (
+        'Se registró una llegada tarde en el sistema de asistencia.\n\n'
+        f"Alumno: {alumno['nombre']} {alumno['apellido']}\n"
+        f"Curso: {alumno['curso'] or 'Sin curso'}\n"
+        f'Fecha: {fecha}\n'
+        f'Hora de llegada: {hora}\n'
+    )
+    return send_email_message(alumno['email'], 'Aviso de llegada tarde', body)
 
 # Preserve existing backup files and their database history when moving to backup_db/.
 if os.path.isdir(LEGACY_BACKUP_FOLDER):
@@ -183,6 +193,12 @@ def init_db():
             tamano INTEGER NOT NULL
         )
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS ajustes (
+            clave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL
+        )
+    ''')
 
     def add_column_if_missing(table, column, definition):
         existing = [row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()]
@@ -240,8 +256,38 @@ def init_db():
                      ('admin@colegio.com', generate_password_hash('admin123'), 'Administrador', 'Admin', '', 'directivo', None, None, None))
     except sqlite3.IntegrityError:
         pass
+    # Los canales quedan activos por defecto para conservar el comportamiento previo.
+    conn.execute("INSERT OR IGNORE INTO ajustes (clave, valor) VALUES ('notificaciones_email', '1')")
+    conn.execute("INSERT OR IGNORE INTO ajustes (clave, valor) VALUES ('notificaciones_telegram', '1')")
     conn.commit()
     conn.close()
+
+
+def get_ajuste(clave: str, default: str = '') -> str:
+    conn = get_db()
+    row = conn.execute('SELECT valor FROM ajustes WHERE clave=?', (clave,)).fetchone()
+    conn.close()
+    return row['valor'] if row else default
+
+
+def set_ajuste(clave: str, valor: str) -> None:
+    conn = get_db()
+    conn.execute(
+        'INSERT INTO ajustes (clave, valor) VALUES (?, ?) '
+        'ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor',
+        (clave, valor),
+    )
+    conn.commit()
+    conn.close()
+
+
+def notificaciones_activas(canal: str) -> bool:
+    """Indica si un canal experimental ('email' o 'telegram') está habilitado."""
+    try:
+        return get_ajuste(f'notificaciones_{canal}', '1') == '1'
+    except sqlite3.Error:
+        app.logger.exception('No se pudo leer la configuración de notificaciones.')
+        return False
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
@@ -586,6 +632,90 @@ def dashboard_directivo():
                            total_preceptores=total_preceptores)
 
 
+@app.route('/directivo/funciones-experimentales')
+@login_required
+@rol_requerido('directivo')
+def funciones_experimentales():
+    conn = get_db()
+    directivo = conn.execute("SELECT email FROM usuarios WHERE id=?", (session['usuario_id'],)).fetchone()
+    conn.close()
+    email_config = {
+        'host': os.environ.get('SMTP_HOST', '').strip(),
+        'port': os.environ.get('SMTP_PORT', '587').strip() or '587',
+        'username': os.environ.get('SMTP_USERNAME', '').strip(),
+        'password': bool(os.environ.get('SMTP_PASSWORD', '')),
+        'from_email': os.environ.get('SMTP_FROM_EMAIL', os.environ.get('SMTP_USERNAME', '')).strip(),
+    }
+    telegram_config = {
+        'token': bool(os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()),
+        'chat_id': os.environ.get('TELEGRAM_CHAT_ID', '').strip(),
+    }
+    return render_template(
+        'funciones_experimentales.html',
+        email_activas=notificaciones_activas('email'),
+        telegram_activas=notificaciones_activas('telegram'),
+        email_config=email_config,
+        telegram_config=telegram_config,
+        email_directivo=directivo['email'] if directivo else '',
+    )
+
+
+@app.route('/directivo/funciones-experimentales/email', methods=['POST'])
+@login_required
+@rol_requerido('directivo')
+def alternar_notificaciones_email():
+    accion = request.form.get('accion')
+    if accion not in ('activar', 'desactivar'):
+        flash('Acción inválida para las notificaciones por correo.')
+    else:
+        set_ajuste('notificaciones_email', '1' if accion == 'activar' else '0')
+        flash('Notificaciones por correo activadas.' if accion == 'activar'
+              else 'Notificaciones por correo desactivadas.')
+    return redirect(url_for('funciones_experimentales'))
+
+
+@app.route('/directivo/funciones-experimentales/telegram', methods=['POST'])
+@login_required
+@rol_requerido('directivo')
+def alternar_notificaciones_telegram():
+    accion = request.form.get('accion')
+    if accion not in ('activar', 'desactivar'):
+        flash('Acción inválida para las notificaciones por Telegram.')
+    else:
+        set_ajuste('notificaciones_telegram', '1' if accion == 'activar' else '0')
+        flash('Notificaciones por Telegram activadas.' if accion == 'activar'
+              else 'Notificaciones por Telegram desactivadas.')
+    return redirect(url_for('funciones_experimentales'))
+
+
+@app.route('/directivo/funciones-experimentales/email/test', methods=['POST'])
+@login_required
+@rol_requerido('directivo')
+def probar_email():
+    destinatario = request.form.get('destinatario', '').strip()
+    if not destinatario:
+        conn = get_db()
+        directivo = conn.execute("SELECT email FROM usuarios WHERE id=?", (session['usuario_id'],)).fetchone()
+        conn.close()
+        destinatario = directivo['email'] if directivo else ''
+    if not destinatario or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', destinatario):
+        flash('Ingresá una dirección de correo válida para la prueba.')
+    elif not os.environ.get('SMTP_HOST', '').strip():
+        flash('Falta configurar SMTP_HOST.')
+    elif not os.environ.get('SMTP_FROM_EMAIL', os.environ.get('SMTP_USERNAME', '')).strip():
+        flash('Falta configurar SMTP_FROM_EMAIL o SMTP_USERNAME.')
+    elif send_email_message(
+        destinatario,
+        'Prueba de notificaciones por correo',
+        'Mensaje de prueba del sistema de asistencia.\n\n'
+        'Si recibís este correo, las notificaciones por email están configuradas correctamente.\n',
+    ):
+        flash(f'Correo de prueba enviado correctamente a {destinatario}.')
+    else:
+        flash('No se pudo enviar el correo de prueba. Revisá el servidor SMTP, las credenciales y la conexión.')
+    return redirect(url_for('funciones_experimentales'))
+
+
 @app.route('/directivo/telegram/test', methods=['POST'])
 @login_required
 @rol_requerido('directivo')
@@ -598,7 +728,7 @@ def probar_telegram():
         flash('Mensaje de prueba enviado correctamente por Telegram.')
     else:
         flash('No se pudo enviar el mensaje de prueba por Telegram. Revisá el token, el chat y la conexión.')
-    return redirect(url_for('dashboard_directivo'))
+    return redirect(url_for('funciones_experimentales'))
 
 @app.route('/preceptor')
 @login_required

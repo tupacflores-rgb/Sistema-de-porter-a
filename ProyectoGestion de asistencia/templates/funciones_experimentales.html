@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard-head">
+  <div>
+    <div class="login-kicker">Administración</div>
+    <h2>Funciones experimentales</h2>
+    <p>Activá, desactivá y probá los canales de notificación del sistema.</p>
+  </div>
+</div>
+
+<div class="alert alert-warning" role="alert">
+  <i class="fa-solid fa-flask"></i>
+  Estas funciones son experimentales. Los avisos automáticos solo se envían si el canal está activado y sus datos de configuración están completos.
+  Las pruebas de envío funcionan aunque el canal esté desactivado, para que puedas verificar la configuración antes de activarlo.
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <h5 class="card-title mb-0"><i class="fa-solid fa-envelope"></i> Notificaciones por correo</h5>
+          {% if email_activas %}
+          <span class="badge bg-success">Activadas</span>
+          {% else %}
+          <span class="badge bg-secondary">Desactivadas</span>
+          {% endif %}
+        </div>
+        <p class="text-muted">Avisan al alumno por email cuando se registra una llegada tarde.</p>
+
+        <h6>Configuración detectada</h6>
+        <ul class="list-unstyled small mb-3">
+          <li class="mb-1">
+            {% if email_config.host %}<i class="fa-solid fa-circle-check text-success"></i>{% else %}<i class="fa-solid fa-circle-xmark text-danger"></i>{% endif %}
+            SMTP_HOST: {{ email_config.host or 'sin configurar' }}
+          </li>
+          <li class="mb-1">
+            <i class="fa-solid fa-circle-check text-success"></i>
+            SMTP_PORT: {{ email_config.port }}
+          </li>
+          <li class="mb-1">
+            {% if email_config.username %}<i class="fa-solid fa-circle-check text-success"></i>{% else %}<i class="fa-solid fa-circle-xmark text-danger"></i>{% endif %}
+            SMTP_USERNAME: {{ email_config.username or 'sin configurar' }}
+          </li>
+          <li class="mb-1">
+            {% if email_config.password %}<i class="fa-solid fa-circle-check text-success"></i>{% else %}<i class="fa-solid fa-circle-xmark text-danger"></i>{% endif %}
+            SMTP_PASSWORD: {{ 'configurada' if email_config.password else 'sin configurar' }}
+          </li>
+          <li class="mb-1">
+            {% if email_config.from_email %}<i class="fa-solid fa-circle-check text-success"></i>{% else %}<i class="fa-solid fa-circle-xmark text-danger"></i>{% endif %}
+            Remitente: {{ email_config.from_email or 'sin configurar' }}
+          </li>
+        </ul>
+
+        <form method="post" action="{{ url_for('alternar_notificaciones_email') }}" class="mb-3">
+          {% if email_activas %}
+          <input type="hidden" name="accion" value="desactivar">
+          <button type="submit" class="btn btn-outline-danger"><i class="fa-solid fa-toggle-off"></i> Desactivar notificaciones por correo</button>
+          {% else %}
+          <input type="hidden" name="accion" value="activar">
+          <button type="submit" class="btn btn-success"><i class="fa-solid fa-toggle-on"></i> Activar notificaciones por correo</button>
+          {% endif %}
+        </form>
+
+        <form method="post" action="{{ url_for('probar_email') }}" class="mt-auto">
+          <label for="destinatario">Enviar correo de prueba a</label>
+          <div class="input-group">
+            <input type="email" class="form-control" id="destinatario" name="destinatario" value="{{ email_directivo }}" placeholder="correo@ejemplo.com" required>
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Probar envío</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <h5 class="card-title mb-0"><i class="fa-brands fa-telegram"></i> Notificaciones por Telegram</h5>
+          {% if telegram_activas %}
+          <span class="badge bg-success">Activadas</span>
+          {% else %}
+          <span class="badge bg-secondary">Desactivadas</span>
+          {% endif %}
+        </div>
+        <p class="text-muted">Avisan al chat o grupo configurado cuando se registra una llegada tarde.</p>
+
+        <h6>Configuración detectada</h6>
+        <ul class="list-unstyled small mb-3">
+          <li class="mb-1">
+            {% if telegram_config.token %}<i class="fa-solid fa-circle-check text-success"></i>{% else %}<i class="fa-solid fa-circle-xmark text-danger"></i>{% endif %}
+            TELEGRAM_BOT_TOKEN: {{ 'configurado' if telegram_config.token else 'sin configurar' }}
+          </li>
+          <li class="mb-1">
+            {% if telegram_config.chat_id %}<i class="fa-solid fa-circle-check text-success"></i>{% else %}<i class="fa-solid fa-circle-xmark text-danger"></i>{% endif %}
+            TELEGRAM_CHAT_ID: {{ telegram_config.chat_id or 'sin configurar' }}
+          </li>
+        </ul>
+
+        <form method="post" action="{{ url_for('alternar_notificaciones_telegram') }}" class="mb-3">
+          {% if telegram_activas %}
+          <input type="hidden" name="accion" value="desactivar">
+          <button type="submit" class="btn btn-outline-danger"><i class="fa-solid fa-toggle-off"></i> Desactivar notificaciones por Telegram</button>
+          {% else %}
+          <input type="hidden" name="accion" value="activar">
+          <button type="submit" class="btn btn-success"><i class="fa-solid fa-toggle-on"></i> Activar notificaciones por Telegram</button>
+          {% endif %}
+        </form>
+
+        <form method="post" action="{{ url_for('probar_telegram') }}" class="mt-auto">
+          <label>Enviar mensaje de prueba</label>
+          <button type="submit" class="btn btn-primary w-100"><i class="fa-brands fa-telegram"></i> Probar envío por Telegram</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<a href="{{ url_for('dashboard_directivo') }}" class="btn btn-secondary">Volver al panel</a>
+{% endblock %}
