@@ -52,6 +52,41 @@
           </li>
         </ul>
 
+        <form method="post" action="{{ url_for('guardar_configuracion_notificaciones') }}" class="mb-3">
+          <input type="hidden" name="canal" value="email">
+          <h6>Guardar configuración de correo en .env</h6>
+          <div class="row g-2">
+            <div class="col-sm-8">
+              <label for="smtp_host">Servidor SMTP</label>
+              <input type="text" class="form-control" id="smtp_host" name="smtp_host" value="{{ email_config.host }}" placeholder="smtp.gmail.com">
+            </div>
+            <div class="col-sm-4">
+              <label for="smtp_port">Puerto</label>
+              <input type="number" class="form-control" id="smtp_port" name="smtp_port" value="{{ email_config.port }}" min="1" max="65535">
+            </div>
+            <div class="col-12">
+              <label for="smtp_username">Usuario SMTP</label>
+              <input type="text" class="form-control" id="smtp_username" name="smtp_username" value="{{ email_config.username }}" autocomplete="off" placeholder="tucuenta@gmail.com">
+            </div>
+            <div class="col-12">
+              <label for="smtp_password">Contraseña o clave de aplicación</label>
+              <input type="password" class="form-control" id="smtp_password" name="smtp_password" autocomplete="new-password"
+                     placeholder="{{ 'Configurada. Dejá vacío para conservarla.' if email_config.password else 'Sin configurar' }}">
+            </div>
+            <div class="col-12">
+              <label for="smtp_from_email">Correo remitente</label>
+              <input type="email" class="form-control" id="smtp_from_email" name="smtp_from_email" value="{{ email_config.from_email }}" placeholder="avisos@colegio.com">
+            </div>
+          </div>
+          {% if email_config.password %}
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" name="borrar_password" value="1" id="borrar_password">
+            <label class="form-check-label" for="borrar_password">Borrar la contraseña guardada</label>
+          </div>
+          {% endif %}
+          <button type="submit" class="btn btn-outline-primary mt-3"><i class="fa-solid fa-floppy-disk"></i> Guardar configuración de correo</button>
+        </form>
+
         <form method="post" action="{{ url_for('alternar_notificaciones_email') }}" class="mb-3">
           {% if email_activas %}
           <input type="hidden" name="accion" value="desactivar">
@@ -97,6 +132,27 @@
             TELEGRAM_CHAT_ID: {{ telegram_config.chat_id or 'sin configurar' }}
           </li>
         </ul>
+
+        <form method="post" action="{{ url_for('guardar_configuracion_notificaciones') }}" class="mb-3">
+          <input type="hidden" name="canal" value="telegram">
+          <h6>Guardar configuración de Telegram en .env</h6>
+          <div class="mb-2">
+            <label for="telegram_bot_token">Token del bot</label>
+            <input type="password" class="form-control" id="telegram_bot_token" name="telegram_bot_token" autocomplete="new-password"
+                   placeholder="{{ 'Configurado. Dejá vacío para conservarlo.' if telegram_config.token else 'Sin configurar' }}">
+          </div>
+          <div>
+            <label for="telegram_chat_id">Chat ID</label>
+            <input type="text" class="form-control" id="telegram_chat_id" name="telegram_chat_id" value="{{ telegram_config.chat_id }}" placeholder="123456789 o -100123456789">
+          </div>
+          {% if telegram_config.token %}
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" name="borrar_token" value="1" id="borrar_token">
+            <label class="form-check-label" for="borrar_token">Borrar el token guardado</label>
+          </div>
+          {% endif %}
+          <button type="submit" class="btn btn-outline-primary mt-3"><i class="fa-solid fa-floppy-disk"></i> Guardar configuración de Telegram</button>
+        </form>
 
         <form method="post" action="{{ url_for('alternar_notificaciones_telegram') }}" class="mb-3">
           {% if telegram_activas %}

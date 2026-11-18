@@ -27,7 +27,8 @@ from functools import wraps
 HORARIOS_INICIO = {'mañana': (8, 0), 'tarde': (13, 0)}
 
 APP_FOLDER = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(APP_FOLDER, '.env'))
+ENV_PATH = os.path.join(APP_FOLDER, '.env')
+load_dotenv(ENV_PATH)
 STATIC_FOLDER = os.path.join(APP_FOLDER, 'static')
 DATABASE_PATH = os.path.join(APP_FOLDER, 'database.db')
 BACKUP_FOLDER = os.path.join(APP_FOLDER, 'backup_db')
@@ -288,6 +289,56 @@ def notificaciones_activas(canal: str) -> bool:
     except sqlite3.Error:
         app.logger.exception('No se pudo leer la configuración de notificaciones.')
         return False
+
+
+def _format_env_value(value: str) -> str:
+    """Escapa un valor para que python-dotenv lo lea tal cual."""
+    value = (value or '').replace('\r', '').replace('\n', '')
+    if value == '' or re.fullmatch(r'[A-Za-z0-9_@.+:/=-]*', value):
+        return value
+    escaped = value.replace('\\', '\\\\').replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def actualizar_env(updates: dict) -> None:
+    """Actualiza claves del .env preservando comentarios y otras variables."""
+    lines = []
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, 'r', encoding='utf-8') as env_file:
+            lines = env_file.read().splitlines()
+
+    found = set()
+    key_pattern = re.compile(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=')
+    new_lines = []
+    for line in lines:
+        match = key_pattern.match(line)
+        if match and match.group(1) in updates:
+            key = match.group(1)
+            new_lines.append(f'{key}={_format_env_value(updates[key])}')
+            found.add(key)
+        else:
+            new_lines.append(line)
+
+    missing = [key for key in updates if key not in found]
+    if missing:
+        if new_lines and new_lines[-1].strip():
+            new_lines.append('')
+        new_lines.append('# Configuración de notificaciones')
+        for key in missing:
+            new_lines.append(f'{key}={_format_env_value(updates[key])}')
+
+    content = '\n'.join(new_lines).rstrip() + '\n'
+    temporary_path = f'{ENV_PATH}.tmp'
+    with open(temporary_path, 'w', encoding='utf-8', newline='\n') as env_file:
+        env_file.write(content)
+    try:
+        os.chmod(temporary_path, 0o600)
+    except OSError:
+        pass
+    os.replace(temporary_path, ENV_PATH)
+
+    for key, value in updates.items():
+        os.environ[key] = value
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
@@ -713,6 +764,72 @@ def probar_email():
         flash(f'Correo de prueba enviado correctamente a {destinatario}.')
     else:
         flash('No se pudo enviar el correo de prueba. Revisá el servidor SMTP, las credenciales y la conexión.')
+    return redirect(url_for('funciones_experimentales'))
+
+
+@app.route('/directivo/funciones-experimentales/configuracion', methods=['POST'])
+@login_required
+@rol_requerido('directivo')
+def guardar_configuracion_notificaciones():
+    canal = request.form.get('canal')
+    errors = []
+
+    if canal == 'email':
+        host = request.form.get('smtp_host', '').strip()
+        port_raw = request.form.get('smtp_port', '').strip() or '587'
+        username = request.form.get('smtp_username', '').strip()
+        from_email = request.form.get('smtp_from_email', '').strip()
+        password = request.form.get('smtp_password', '')
+        borrar_password = request.form.get('borrar_password') == '1'
+
+        if host and not re.fullmatch(r'[A-Za-z0-9.\-]+', host):
+            errors.append('El servidor SMTP contiene caracteres inválidos.')
+        try:
+            if not 1 <= int(port_raw) <= 65535:
+                raise ValueError
+        except ValueError:
+            errors.append('El puerto SMTP debe ser un número entre 1 y 65535.')
+        if from_email and not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', from_email):
+            errors.append('El correo remitente no es válido.')
+
+        if not errors:
+            updates = {
+                'SMTP_HOST': host,
+                'SMTP_PORT': port_raw,
+                'SMTP_USERNAME': username,
+                'SMTP_FROM_EMAIL': from_email,
+            }
+            if borrar_password:
+                updates['SMTP_PASSWORD'] = ''
+            elif password:
+                updates['SMTP_PASSWORD'] = password
+            actualizar_env(updates)
+            flash('Configuración de correo guardada en .env.')
+
+    elif canal == 'telegram':
+        token = request.form.get('telegram_bot_token', '').strip()
+        chat_id = request.form.get('telegram_chat_id', '').strip()
+        borrar_token = request.form.get('borrar_token') == '1'
+
+        if token and re.search(r'\s', token):
+            errors.append('El token del bot no puede contener espacios.')
+        if chat_id and re.search(r'\s', chat_id):
+            errors.append('El chat_id no puede contener espacios.')
+
+        if not errors:
+            updates = {'TELEGRAM_CHAT_ID': chat_id}
+            if borrar_token:
+                updates['TELEGRAM_BOT_TOKEN'] = ''
+            elif token:
+                updates['TELEGRAM_BOT_TOKEN'] = token
+            actualizar_env(updates)
+            flash('Configuración de Telegram guardada en .env.')
+
+    else:
+        flash('Canal de notificación inválido.')
+
+    for error in errors:
+        flash(error)
     return redirect(url_for('funciones_experimentales'))
 
 
